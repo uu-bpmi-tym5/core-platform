@@ -1,10 +1,25 @@
 import { Injectable } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { CreateAuthDto } from './dto/create-auth.dto';
 import { UpdateAuthDto } from './dto/update-auth.dto';
 
+export interface JwtPayload {
+  sub: string;
+  email: string;
+  iat?: number;
+  exp?: number;
+}
+
 @Injectable()
 export class AuthService {
-  create(createAuthDto: CreateAuthDto) {
+  constructor(private readonly jwtService: JwtService) {}
+
+  async generateToken(email: string): Promise<string> {
+    const payload: JwtPayload = { sub: email, email };
+    return this.jwtService.signAsync(payload);
+  }
+
+  create(_createAuthDto: CreateAuthDto) {
     return 'This action adds a new auth';
   }
 
@@ -16,22 +31,11 @@ export class AuthService {
     return `This action returns a #${id} auth`;
   }
 
-  update(id: number, updateAuthDto: UpdateAuthDto) {
+  update(id: number, _updateAuthDto: UpdateAuthDto) {
     return `This action updates a #${id} auth`;
   }
 
   remove(id: number) {
     return `This action removes a #${id} auth`;
-  }
-
-  generateToken(email: string): string {
-    // Mock token generation for now
-    const mockPayload = {
-      email,
-      userId: Math.floor(Math.random() * 10000),
-      iat: Date.now(),
-    };
-    const token = Buffer.from(JSON.stringify(mockPayload)).toString('base64');
-    return `mock_token_${token}`;
   }
 }
