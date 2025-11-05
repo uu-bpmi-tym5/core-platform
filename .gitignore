@@ -1,3 +1,7 @@
 node_modules
 .idea
 .nx/cache
+
+# Next.js
+.next
+out

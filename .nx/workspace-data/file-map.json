@@ -33,56 +33,143 @@
       "options": {
         "targetName": "lint"
       }
+    },
+    {
+      "name": "@nx/next/plugin",
+      "options": {
+        "startTargetName": "start",
+        "buildTargetName": "build",
+        "devTargetName": "dev",
+        "serveStaticTargetName": "serve-static",
+        "buildDepsTargetName": "build-deps",
+        "watchDepsTargetName": "watch-deps"
+      }
     }
   ],
   "fileMap": {
     "nonProjectFiles": [
       {
-        "file": ".gitignore",
-        "hash": "7135990093751242067"
+        "file": "tsconfig.json",
+        "hash": "12453040391761122838"
       },
       {
-        "file": ".vscode/launch.json",
-        "hash": "4095267532870178451"
-      },
-      {
-        "file": "README.md",
-        "hash": "9522141672437183699"
+        "file": "nx.json",
+        "hash": "11008467260998001735"
       },
       {
         "file": "TESTING.md",
         "hash": "106233019742313168"
       },
       {
-        "file": "eslint.config.mjs",
-        "hash": "7952676282655520759"
-      },
-      {
-        "file": "nx.json",
-        "hash": "11220219641729637037"
-      },
-      {
-        "file": "package-lock.json",
-        "hash": "15418067343849610645"
+        "file": "test-graphql.sh",
+        "hash": "17568512098025168327"
       },
       {
         "file": "package.json",
-        "hash": "8913474792179518772"
+        "hash": "5824771747868315526"
       },
       {
-        "file": "test-graphql.sh",
-        "hash": "17568512098025168327"
+        "file": "package-lock.json",
+        "hash": "4131922894595568647"
+      },
+      {
+        "file": ".vscode/launch.json",
+        "hash": "4095267532870178451"
+      },
+      {
+        "file": ".gitignore",
+        "hash": "4356433008622176384"
+      },
+      {
+        "file": "eslint.config.mjs",
+        "hash": "7952676282655520759"
       },
       {
         "file": "tsconfig.base.json",
         "hash": "12756455269271439907"
       },
       {
-        "file": "tsconfig.json",
-        "hash": "1875172258329764554"
+        "file": "README.md",
+        "hash": "9522141672437183699"
       }
     ],
     "projectFileMap": {
+      "frontend": [
+        {
+          "file": "apps/frontend/.swcrc",
+          "hash": "12307600318232351063"
+        },
+        {
+          "file": "apps/frontend/eslint.config.mjs",
+          "hash": "12952075030624936921",
+          "deps": [
+            "npm:@eslint/eslintrc",
+            "npm:@eslint/js",
+            "npm:@eslint/compat",
+            "npm:@nx/eslint-plugin"
+          ]
+        },
+        {
+          "file": "apps/frontend/index.d.ts",
+          "hash": "17978550148300837039"
+        },
+        {
+          "file": "apps/frontend/next-env.d.ts",
+          "hash": "1320675027584673186"
+        },
+        {
+          "file": "apps/frontend/next.config.js",
+          "hash": "227797574239823241",
+          "deps": [
+            "npm:@nx/next"
+          ]
+        },
+        {
+          "file": "apps/frontend/package.json",
+          "hash": "2974423175399341897",
+          "deps": [
+            "npm:next",
+            "npm:react",
+            "npm:react-dom"
+          ]
+        },
+        {
+          "file": "apps/frontend/postcss.config.js",
+          "hash": "15972724582657845432"
+        },
+        {
+          "file": "apps/frontend/public/.gitkeep",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/frontend/public/favicon.ico",
+          "hash": "9303420814833116677"
+        },
+        {
+          "file": "apps/frontend/src/app/api/hello/route.ts",
+          "hash": "481462152031695647"
+        },
+        {
+          "file": "apps/frontend/src/app/global.css",
+          "hash": "9232295677464338735"
+        },
+        {
+          "file": "apps/frontend/src/app/layout.tsx",
+          "hash": "14639536254623571858"
+        },
+        {
+          "file": "apps/frontend/src/app/page.tsx",
+          "hash": "6949760679267265104"
+        },
+        {
+          "file": "apps/frontend/tailwind.config.js",
+          "hash": "12678958122524329131"
+        },
+        {
+          "file": "apps/frontend/tsconfig.json",
+          "hash": "18005253039404529636"
+        }
+      ],
       "backend": [
         {
           "file": "apps/backend/dist/assets/.gitkeep",
@@ -132,7 +219,7 @@
         },
         {
           "file": "apps/backend/dist/package-lock.json",
-          "hash": "12047845085149634267"
+          "hash": "15701939133065132579"
         },
         {
           "file": "apps/backend/dist/package.json",
@@ -156,7 +243,7 @@
             "npm:@nestjs/mapped-types",
             "npm:@nestjs/microservices",
             "npm:@nestjs/platform-express",
-            "npm:express@5.1.0",
+            "npm:express",
             "npm:graphql",
             "npm:reflect-metadata",
             "npm:rxjs",
@@ -285,5 +372,5 @@
       ]
     }
   },
-  "externalNodesHash": "16670728099078458401"
+  "externalNodesHash": "6292295710989002914"
 }
