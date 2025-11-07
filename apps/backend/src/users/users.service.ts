@@ -4,6 +4,7 @@ import { CreateUserInput } from './dto/create-user.input';
 import { firstValueFrom } from 'rxjs';
 import {Repository} from "typeorm";
 import {User} from "./entities/user.entity";
+import {Session} from "../auth/entities/session.entity";
 
 
 @Injectable()
@@ -42,8 +43,34 @@ export class UsersService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    return firstValueFrom(
-      this.authClient.send<string>('generateToken', {email, userId: user.id})
+    const sessionId = await firstValueFrom(
+          this.authClient.send<string>('createSession', user.id)
     );
+
+    return firstValueFrom(
+      this.authClient.send<string>('generateToken', {email, userId: user.id, sessionId})
+    );
+  }
+
+  async deleteSession(sessionId: string): Promise<void> {
+    return firstValueFrom(
+      this.authClient.send<void>('deleteSession', sessionId)
+    );
+  }
+
+  async deleteAllSessions(userId: string): Promise<void> {
+    return firstValueFrom(
+      this.authClient.send<void>('deleteAllSessions', userId)
+    );
+  }
+
+  async getAllSessions(userId: string) {
+    return firstValueFrom(
+      this.authClient.send<Session[]>('allSessions', userId)
+    );
+  }
+
+  async findById(userId: string): Promise<User | null> {
+    return this.userRepository.findOne({ where: { id: userId } });
   }
 }

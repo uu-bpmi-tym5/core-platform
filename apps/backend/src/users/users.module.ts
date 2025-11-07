@@ -2,8 +2,9 @@ import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { UsersService } from './users.service';
 import { UserResolver } from './users.resolver';
-import {userProviders} from "./user.providers";
-import {DatabaseModule} from "../database/database.module";
+import { userProviders } from "./user.providers";
+import { DatabaseModule } from "../database/database.module";
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -17,7 +18,8 @@ import {DatabaseModule} from "../database/database.module";
         },
       },
     ]),
-    DatabaseModule
+    DatabaseModule,
+    AuthModule
   ],
   providers: [UserResolver, UsersService, ...userProviders],
 })

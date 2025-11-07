@@ -15,6 +15,7 @@ export class User {
   @Column()
   password: string;
 
+  @Field(() => String, { description: 'Name of the user' })
   @Column()
   name: string;
 }
