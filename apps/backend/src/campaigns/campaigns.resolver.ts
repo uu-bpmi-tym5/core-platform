@@ -2,7 +2,9 @@ import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
 import { UseGuards, ForbiddenException } from '@nestjs/common';
 import { CampaignsService } from './campaigns.service';
 import { Campaign } from './entities/campaign.entity';
+import { CampaignContribution } from './entities/campaign-contribution.entity';
 import { CreateCampaignInput, UpdateCampaignInput } from './dto';
+import { CampaignContributionStats } from './dto/campaign-contribution-stats.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { GetCurrentUser } from '../auth/decorators/get-current-user.decorator';
@@ -142,5 +144,46 @@ export class CampaignsResolver {
       throw new ForbiddenException('You can only update your own campaigns');
     }
     return this.campaignsService.updateCampaign(updateCampaignInput.id, updateCampaignInput);
+  }
+
+  @Mutation(() => Boolean)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CREATOR, Role.ADMIN)
+  async deleteCampaignWithRefunds(
+    @Args('campaignId') campaignId: string,
+    @Args('reason') reason: string,
+    @GetCurrentUser() user: JwtPayload,
+  ): Promise<boolean> {
+    return this.campaignsService.deleteCampaignWithRefunds(campaignId, user.userId, reason);
+  }
+
+  @Query(() => [CampaignContribution], { name: 'campaignContributions' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CREATOR, Role.ADMIN)
+  async getCampaignContributions(
+    @Args('campaignId') campaignId: string,
+    @GetCurrentUser() user: JwtPayload,
+  ): Promise<CampaignContribution[]> {
+    // Zkontroluj, jestli je uživatel vlastníkem nebo adminem
+    const isOwner = await this.campaignsService.isOwner(campaignId, user.userId);
+    if (!isOwner && user.role !== Role.ADMIN) {
+      throw new ForbiddenException('Přístup pouze pro vlastníka kampane nebo administrátora');
+    }
+    return this.campaignsService.getCampaignContributions(campaignId);
+  }
+
+  @Query(() => CampaignContributionStats, { name: 'campaignContributionStats' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CREATOR, Role.ADMIN)
+  async getCampaignContributionStats(
+    @Args('campaignId') campaignId: string,
+    @GetCurrentUser() user: JwtPayload,
+  ): Promise<CampaignContributionStats> {
+    // Zkontroluj, jestli je uživatel vlastníkem nebo adminem
+    const isOwner = await this.campaignsService.isOwner(campaignId, user.userId);
+    if (!isOwner && user.role !== Role.ADMIN) {
+      throw new ForbiddenException('Přístup pouze pro vlastníka kampane nebo administrátora');
+    }
+    return this.campaignsService.getCampaignContributionStats(campaignId);
   }
 }

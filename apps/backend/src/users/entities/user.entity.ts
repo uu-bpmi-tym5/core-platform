@@ -27,4 +27,8 @@ export class User {
   })
   @Field(() => Role, { description: 'Role of the user' })
   role: Role;
+
+  @Column('decimal', { precision: 10, scale: 2, default: 0 })
+  @Field(() => Number, { description: 'Wallet balance of the user' })
+  walletBalance: number;
 }

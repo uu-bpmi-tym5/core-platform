@@ -5,6 +5,7 @@ import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
 import { CampaignsModule } from '../campaigns/campaigns.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { WalletModule } from '../wallet/wallet.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     UsersModule,
     CampaignsModule,
     NotificationsModule,
+    WalletModule,
   ],
   controllers: [],
   providers: [],

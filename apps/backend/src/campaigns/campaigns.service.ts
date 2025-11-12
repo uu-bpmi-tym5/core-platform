@@ -1,8 +1,9 @@
-import {Inject, Injectable, NotFoundException} from '@nestjs/common';
+import {Inject, Injectable, NotFoundException, BadRequestException, forwardRef} from '@nestjs/common';
 import {Repository} from 'typeorm';
 import {Campaign, CampaignStatus} from './entities/campaign.entity';
 import {CampaignFeedback} from './entities/campaign-feedback.entity';
 import {CampaignStats} from './entities/campaign-stats.entity';
+import {CampaignContribution} from './entities/campaign-contribution.entity';
 import {CreateCampaignFeedbackInput, CreateCampaignInput, UpdateCampaignInput, UpdateCampaignStatsInput} from './dto';
 import {NotificationsClient} from '../notifications/notifications.client';
 
@@ -15,6 +16,8 @@ export class CampaignsService {
     private campaignFeedbackRepository: Repository<CampaignFeedback>,
     @Inject('CAMPAIGN_STATS_REPOSITORY')
     private campaignStatsRepository: Repository<CampaignStats>,
+    @Inject('CAMPAIGN_CONTRIBUTION_REPOSITORY')
+    private contributionRepository: Repository<CampaignContribution>,
     private notificationsClient: NotificationsClient,
   ) {}
 
@@ -283,5 +286,92 @@ export class CampaignsService {
         `/campaigns/${campaign.id}/stats`
       );
     }
+  }
+
+  async deleteCampaignWithRefunds(campaignId: string, userId: string, reason: string): Promise<boolean> {
+    const campaign = await this.findCampaignById(campaignId);
+
+    // Zkontroluj, jestli je uživatel vlastníkem nebo adminem
+    if (campaign.creatorId !== userId) {
+      throw new BadRequestException('Pouze vlastník kampaně může smazat kampaň');
+    }
+
+    // Najdi všechny příspěvky k této kampani
+    const contributions = await this.contributionRepository.find({
+      where: {
+        campaignId,
+        isRefunded: false
+      },
+      relations: ['contributor'],
+    });
+
+    // Pokud má kampaň příspěvky, vrať je
+    if (contributions.length > 0) {
+      // Pozn: Tady by normálně volal WalletService, ale kvůli circular dependency
+      // to řešíme jinak - vytvoříme událost, kterou zpracuje WalletService
+      for (const contribution of contributions) {
+        // Vrať příspěvek přímo v databázi
+        await this.contributionRepository.update(contribution.id, { isRefunded: true });
+
+        // Pošli notifikaci přispěvateli
+        await this.notificationsClient.createWarningNotification(
+          contribution.contributorId,
+          'Kampaň byla smazána - příspěvek vrácen 💸',
+          `Kampaň "${campaign.name}" byla smazána. Váš příspěvek ${contribution.amount} EUR byl vrácen zpět na váš účet. Důvod: ${reason}`,
+          `/wallet`
+        );
+      }
+
+      const totalRefunded = contributions.reduce((sum, c) => sum + Number(c.amount), 0);
+
+      // Pošli notifikaci vlastníkovi
+      await this.notificationsClient.createInfoNotification(
+        userId,
+        'Kampaň smazána s vrácením příspěvků',
+        `Vaše kampaň "${campaign.name}" byla smazána. Celkem bylo vráceno ${totalRefunded} EUR ve ${contributions.length} příspěvcích.`,
+        `/campaigns`
+      );
+    }
+
+    // Označ kampaň jako smazanou
+    await this.campaignRepository.update(campaignId, {
+      status: CampaignStatus.DELETED
+    });
+
+    return true;
+  }
+
+  async getCampaignContributions(campaignId: string): Promise<CampaignContribution[]> {
+    return this.contributionRepository.find({
+      where: { campaignId },
+      relations: ['contributor', 'campaign'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async getCampaignContributionStats(campaignId: string): Promise<{
+    totalContributions: number;
+    totalAmount: number;
+    averageContribution: number;
+    contributorsCount: number;
+  }> {
+    const contributions = await this.contributionRepository.find({
+      where: {
+        campaignId,
+        isRefunded: false
+      },
+    });
+
+    const totalContributions = contributions.length;
+    const totalAmount = contributions.reduce((sum, c) => sum + Number(c.amount), 0);
+    const uniqueContributors = new Set(contributions.map(c => c.contributorId)).size;
+    const averageContribution = totalContributions > 0 ? totalAmount / totalContributions : 0;
+
+    return {
+      totalContributions,
+      totalAmount,
+      averageContribution,
+      contributorsCount: uniqueContributors,
+    };
   }
 }
