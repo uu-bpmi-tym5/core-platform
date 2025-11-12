@@ -4,6 +4,7 @@ import {Campaign, CampaignStatus} from './entities/campaign.entity';
 import {CampaignFeedback} from './entities/campaign-feedback.entity';
 import {CampaignStats} from './entities/campaign-stats.entity';
 import {CreateCampaignFeedbackInput, CreateCampaignInput, UpdateCampaignInput, UpdateCampaignStatsInput} from './dto';
+import {NotificationsClient} from '../notifications/notifications.client';
 
 @Injectable()
 export class CampaignsService {
@@ -14,6 +15,7 @@ export class CampaignsService {
     private campaignFeedbackRepository: Repository<CampaignFeedback>,
     @Inject('CAMPAIGN_STATS_REPOSITORY')
     private campaignStatsRepository: Repository<CampaignStats>,
+    private notificationsClient: NotificationsClient,
   ) {}
 
   async createCampaign(createCampaignInput: CreateCampaignInput, creatorId: string): Promise<Campaign> {
@@ -25,6 +27,14 @@ export class CampaignsService {
     const savedCampaign = await this.campaignRepository.save(campaign);
 
     await this.createCampaignStats(savedCampaign.id);
+
+    // Pošleme notifikaci o vytvoření nové kampaně přes mikroslužbu
+    await this.notificationsClient.createSuccessNotification(
+      creatorId,
+      'Kampaň byla úspěšně vytvořena',
+      `Vaše kampaň "${savedCampaign.name}" byla úspěšně vytvořena a čeká na schválení.`,
+      `/campaigns/${savedCampaign.id}`
+    );
 
     return savedCampaign;
   }

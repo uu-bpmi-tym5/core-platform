@@ -6,9 +6,10 @@ import { CampaignFeedbackResolver } from './campaign-feedback.resolver';
 import { CampaignStatsResolver } from './campaign-stats.resolver';
 import { campaignProviders } from './campaign.providers';
 import { DatabaseModule } from '../database/database.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, NotificationsModule],
   controllers: [CampaignsController],
   providers: [
     CampaignsService,

@@ -4,6 +4,7 @@ import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
 import { CampaignsModule } from '../campaigns/campaigns.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { CampaignsModule } from '../campaigns/campaigns.module';
     AuthModule,
     UsersModule,
     CampaignsModule,
+    NotificationsModule,
   ],
   controllers: [],
   providers: [],
