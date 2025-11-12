@@ -9,6 +9,7 @@ import { GetCurrentUser } from '../auth/decorators/get-current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { Role, Permission } from '../auth/enums';
+import type {JwtPayload} from "../auth/auth.service";
 
 @Resolver(() => Campaign)
 export class CampaignsResolver {
@@ -19,7 +20,7 @@ export class CampaignsResolver {
   @Roles(Role.CREATOR, Role.ADMIN)
   async createCampaign(
     @Args('createCampaignInput') createCampaignInput: CreateCampaignInput,
-    @GetCurrentUser() user: any,
+    @GetCurrentUser() user: JwtPayload,
   ): Promise<Campaign> {
     return this.campaignsService.createCampaign(createCampaignInput, user.userId);
   }
@@ -38,7 +39,7 @@ export class CampaignsResolver {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.CREATOR, Role.ADMIN)
   async findMyCampaigns(
-    @GetCurrentUser() user: any,
+    @GetCurrentUser() user: JwtPayload,
   ): Promise<Campaign[]> {
     return this.campaignsService.findCampaignsByCreator(user.userId);
   }
@@ -48,7 +49,7 @@ export class CampaignsResolver {
   @Roles(Role.CREATOR, Role.ADMIN)
   async updateCampaign(
     @Args('updateCampaignInput') updateCampaignInput: UpdateCampaignInput,
-    @GetCurrentUser() user: any,
+    @GetCurrentUser() user: JwtPayload,
   ): Promise<Campaign> {
     // Check if user owns the campaign or is admin
     const isOwner = await this.campaignsService.isOwner(updateCampaignInput.id, user.userId);
@@ -63,7 +64,7 @@ export class CampaignsResolver {
   @Roles(Role.CREATOR, Role.ADMIN)
   async removeCampaign(
     @Args('id') id: string,
-    @GetCurrentUser() user: any,
+    @GetCurrentUser() user: JwtPayload,
   ): Promise<boolean> {
     // Check if user owns the campaign or is admin
     const isOwner = await this.campaignsService.isOwner(id, user.userId);
@@ -78,7 +79,7 @@ export class CampaignsResolver {
   @Roles(Role.CREATOR)
   async submitCampaign(
     @Args('campaignId') campaignId: string,
-    @GetCurrentUser() user: any,
+    @GetCurrentUser() user: JwtPayload,
   ): Promise<Campaign> {
     const isOwner = await this.campaignsService.isOwner(campaignId, user.userId);
     if (!isOwner) {
@@ -109,5 +110,37 @@ export class CampaignsResolver {
   async incrementCampaignViews(@Args('campaignId') campaignId: string): Promise<Campaign> {
     await this.campaignsService.incrementCampaignViews(campaignId);
     return this.campaignsService.findCampaignById(campaignId);
+  }
+
+  @Mutation(() => Boolean)
+  async processDonation(
+    @Args('campaignId') campaignId: string,
+    @Args('amount') amount: number,
+    @Args('donorName', { nullable: true }) donorName?: string,
+  ): Promise<boolean> {
+    await this.campaignsService.incrementCampaignContributions(campaignId, amount);
+    await this.campaignsService.handleDonationReceived(campaignId, amount, donorName);
+    return true;
+  }
+
+  @Mutation(() => Boolean)
+  async trackCampaignView(@Args('campaignId') campaignId: string): Promise<boolean> {
+    await this.campaignsService.incrementCampaignViews(campaignId);
+    await this.campaignsService.handleCampaignViewed(campaignId);
+    return true;
+  }
+
+  @Mutation(() => Campaign)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CREATOR)
+  async updateCampaignWithNotifications(
+    @Args('updateCampaignInput') updateCampaignInput: UpdateCampaignInput,
+    @GetCurrentUser() user: JwtPayload,
+  ): Promise<Campaign> {
+    const isOwner = await this.campaignsService.isOwner(updateCampaignInput.id, user.userId);
+    if (!isOwner && user.role !== Role.ADMIN) {
+      throw new ForbiddenException('You can only update your own campaigns');
+    }
+    return this.campaignsService.updateCampaign(updateCampaignInput.id, updateCampaignInput);
   }
 }

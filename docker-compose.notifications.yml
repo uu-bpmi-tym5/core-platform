@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  notifications-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.notifications
+    ports:
+      - "3001:3001"
+    environment:
+      - NOTIFICATIONS_SERVICE_HOST=0.0.0.0
+      - NOTIFICATIONS_SERVICE_PORT=3001
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=postgres
+      - DATABASE_NAME=core_platform
+    depends_on:
+      - postgres
+    networks:
+      - microservices-network
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=core_platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - microservices-network
+
+volumes:
+  postgres_data:
+
+networks:
+  microservices-network:
+    driver: bridge

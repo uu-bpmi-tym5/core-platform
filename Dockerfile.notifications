@@ -1,0 +1,24 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Kopírování package.json souborů
+COPY package*.json ./
+COPY apps/backend/package.json ./apps/backend/
+
+# Instalace závislostí
+RUN npm ci --only=production
+
+# Kopírování zdrojového kódu
+COPY apps/backend/src ./apps/backend/src
+COPY apps/backend/tsconfig.json ./apps/backend/
+COPY tsconfig.base.json ./
+
+# Build aplikace
+RUN npm run build:backend
+
+# Exponování portu
+EXPOSE 3001
+
+# Spuštění mikroslužby
+CMD ["node", "dist/apps/backend/src/notifications/microservice.main.js"]

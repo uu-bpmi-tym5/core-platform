@@ -62,8 +62,36 @@ export class CampaignsService {
   }
 
   async updateCampaign(id: string, updateCampaignInput: UpdateCampaignInput): Promise<Campaign> {
+    const oldCampaign = await this.findCampaignById(id);
     await this.campaignRepository.update(id, updateCampaignInput);
-    return this.findCampaignById(id);
+    const updatedCampaign = await this.findCampaignById(id);
+
+    // Notifikace pro změnu statusu
+    if (oldCampaign.status !== updatedCampaign.status) {
+      await this.handleStatusChangeNotification(updatedCampaign, oldCampaign.status);
+    }
+
+    // Notifikace pro změnu cíle
+    if (oldCampaign.goal !== updatedCampaign.goal) {
+      await this.notificationsClient.createInfoNotification(
+        updatedCampaign.creatorId,
+        'Cíl kampaně byl aktualizován',
+        `Cíl vaší kampaně "${updatedCampaign.name}" byl změněn z ${oldCampaign.goal} na ${updatedCampaign.goal} Kč`,
+        `/campaigns/${updatedCampaign.id}`
+      );
+    }
+
+    // Notifikace pro změnu názvu
+    if (oldCampaign.name !== updatedCampaign.name) {
+      await this.notificationsClient.createInfoNotification(
+        updatedCampaign.creatorId,
+        'Název kampaně byl změněn',
+        `Název vaší kampaně byl změněn z "${oldCampaign.name}" na "${updatedCampaign.name}"`,
+        `/campaigns/${updatedCampaign.id}`
+      );
+    }
+
+    return updatedCampaign;
   }
 
   async removeCampaign(id: string): Promise<boolean> {
@@ -167,5 +195,93 @@ export class CampaignsService {
   async submitCampaign(campaignId: string): Promise<Campaign> {
     await this.campaignRepository.update(campaignId, { status: CampaignStatus.SUBMITTED });
     return this.findCampaignById(campaignId);
+  }
+
+  private async handleStatusChangeNotification(campaign: Campaign, oldStatus: CampaignStatus): Promise<void> {
+    const { creatorId, name, id, status } = campaign;
+
+    switch (status) {
+      case CampaignStatus.APPROVED:
+        await this.notificationsClient.createSuccessNotification(
+          creatorId,
+          'Kampaň byla schválena! 🎉',
+          `Vaše kampaň "${name}" byla úspěšně schválena a je nyní veřejně dostupná`,
+          `/campaigns/${id}`
+        );
+        break;
+
+      case CampaignStatus.REJECTED:
+        await this.notificationsClient.createErrorNotification(
+          creatorId,
+          'Kampaň byla zamítnuta',
+          `Vaše kampaň "${name}" byla zamítnuta. Zkontrolujte feedback pro více informací`,
+          `/campaigns/${id}`
+        );
+        break;
+
+      case CampaignStatus.SUBMITTED:
+        await this.notificationsClient.createInfoNotification(
+          creatorId,
+          'Kampaň odeslána ke schválení',
+          `Vaše kampaň "${name}" byla odeslána ke schválení. Očekávejte odpověď do 3 pracovních dnů`,
+          `/campaigns/${id}`
+        );
+        break;
+
+      case CampaignStatus.DELETED:
+        await this.notificationsClient.createWarningNotification(
+          creatorId,
+          'Kampaň byla smazána',
+          `Vaše kampaň "${name}" byla smazána`,
+          `/campaigns`
+        );
+        break;
+
+      default:
+        await this.notificationsClient.createInfoNotification(
+          creatorId,
+          'Stav kampaně byl změněn',
+          `Stav vaší kampaně "${name}" byl změněn z ${oldStatus} na ${status}`,
+          `/campaigns/${id}`
+        );
+    }
+  }
+
+  async handleDonationReceived(campaignId: string, amount: number, donorName?: string): Promise<void> {
+    const campaign = await this.findCampaignById(campaignId);
+    const donorText = donorName ? `od ${donorName}` : 'od anonymního dárce';
+
+    await this.notificationsClient.createSuccessNotification(
+      campaign.creatorId,
+      'Nový příspěvek! 💰',
+      `Vaše kampaň "${campaign.name}" získala příspěvek ${amount} Kč ${donorText}`,
+      `/campaigns/${campaign.id}`,
+    );
+
+    // Zkontrolujeme, jestli dosáhla cíle
+    const updatedStats = await this.findCampaignStats(campaignId);
+    if (updatedStats.totalFunding >= campaign.goal) {
+      await this.notificationsClient.createSuccessNotification(
+        campaign.creatorId,
+        'Cíl kampaně dosažen! 🎯',
+        `Gratulujeme! Vaše kampaň "${campaign.name}" dosáhla svého cíle ${campaign.goal} Kč`,
+        `/campaigns/${campaign.id}`
+      );
+    }
+  }
+
+  async handleCampaignViewed(campaignId: string): Promise<void> {
+    const campaign = await this.findCampaignById(campaignId);
+    const stats = await this.findCampaignStats(campaignId);
+
+    // Notifikujeme každých 100 zobrazení
+    if (stats.viewsCount > 0 && stats.viewsCount % 100 === 0) {
+      await this.notificationsClient.createInfoNotification(
+        campaign.creatorId,
+        'Milestone dosažen! 👀',
+        `Vaše kampaň "${campaign.name}" dosáhla ${stats.viewsCount} zobrazení`,
+        `/campaigns/${campaign.id}/stats`
+      );
+    }
   }
 }
