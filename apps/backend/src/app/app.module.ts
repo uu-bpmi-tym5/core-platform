@@ -10,7 +10,7 @@ import { CampaignsModule } from '../campaigns/campaigns.module';
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       autoSchemaFile: true,
-      playground: true,
+      introspection: true, // Enable introspection for Apollo Sandbox (works with Apollo Server v5)
     }),
     AuthModule,
     UsersModule,
