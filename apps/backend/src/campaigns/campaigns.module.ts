@@ -8,7 +8,7 @@ import { DatabaseModule } from '../database/database.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [DatabaseModule, NotificationsModule],
+  imports: [DatabaseModule, NotificationsModule.withClient()],
   providers: [
     CampaignsService,
     CampaignsResolver,

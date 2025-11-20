@@ -42,15 +42,13 @@ export class NotificationsService {
     }
 
     async getUnreadNotificationsByUserId(userId: string): Promise<Notification[]> {
-        const notifications = await this.notificationRepository.find({
+        return await this.notificationRepository.find({
             where: {
                 userId,
                 status: NotificationStatus.UNREAD
             },
             order: { createdAt: 'DESC' },
         });
-
-        return notifications;
     }
 
     async markAsRead(notificationId: string): Promise<Notification> {
@@ -83,9 +81,7 @@ export class NotificationsService {
             notification.readAt = new Date();
         }
 
-        const updatedNotification = await this.notificationRepository.save(notification);
-
-        return updatedNotification;
+        return await this.notificationRepository.save(notification);
     }
 
     async deleteNotification(id: string): Promise<void> {
