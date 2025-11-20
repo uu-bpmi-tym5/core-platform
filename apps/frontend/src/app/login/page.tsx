@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import SignInPage, { SignInPageProps } from '@/components/ui/sign-in';
 
@@ -12,6 +12,12 @@ export default function LoginPage() {
   const router = useRouter();
   const [status, setStatus] = useState<Status>('idle');
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (status === 'success') {
+      router.push('/');
+    }
+  }, [status, router]);
 
   const description = useMemo(() => {
     if (status === 'error') {

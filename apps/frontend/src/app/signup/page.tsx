@@ -13,6 +13,42 @@ export default function SignUp() {
   const [status, setStatus] = useState<Status>('idle');
   const [message, setMessage] = useState<string | null>(null);
 
+  const autoLogin = async (email: string, password: string) => {
+    const response = await fetch(GRAPHQL_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        query: /* GraphQL */ `
+          mutation Login($email: String!, $password: String!) {
+            login(email: $email, password: $password)
+          }
+        `,
+        variables: { email, password },
+      }),
+    });
+
+    const payload = await response.json();
+
+    if (!response.ok || payload.errors) {
+      const errorMessage =
+        payload?.errors?.[0]?.message ?? 'We could not log you in after creating the account. Please try again.';
+      throw new Error(errorMessage);
+    }
+
+    const token = payload?.data?.login;
+
+    if (!token) {
+      throw new Error('No token returned from the server during login.');
+    }
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('authToken', token);
+    }
+  };
+
   const description = useMemo(() => {
     if (status === 'error') {
       return message ?? 'We could not create your account. Please try again.';
@@ -77,17 +113,19 @@ export default function SignUp() {
         return;
       }
 
-      setStatus('success');
-      setMessage('Account created successfully!');
-      form.reset();
+      setMessage('Account created successfully. Signing you in...');
+      await autoLogin(email, password);
 
-      setTimeout(() => {
-        router.push('/login');
-      }, 1200);
+      setStatus('success');
+      setMessage('Account created and you are now signed in!');
+      form.reset();
+      router.push('/');
     } catch (error) {
       console.error('Sign up error', error);
       setStatus('error');
-      setMessage('Unexpected error while contacting the server.');
+      setMessage(
+        error instanceof Error ? error.message : 'Unexpected error while contacting the server.'
+      );
     }
   };
 
