@@ -9,10 +9,19 @@ import { GetCurrentUser } from '../auth/decorators/get-current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums';
 import type { JwtPayload } from '../auth/auth.service';
+import { Profile } from './entities/profile.entity';
+import { CreatorProfile } from './entities/creator-profile.entity';
+import { ProfileService } from './profile.service';
+import { UpdateProfileInput } from './dto/update-profile.input';
+import { UpdateCreatorProfileInput } from './dto/update-creator-profile.input';
+import { PublicProfile } from './dto/public-profile.output';
 
 @Resolver(() => User)
 export class UserResolver {
-    constructor(private readonly userService: UsersService) {}
+    constructor(
+        private readonly userService: UsersService,
+        private readonly profileService: ProfileService,
+    ) {}
 
     @Query(() => String)
     async hello(): Promise<string> {
@@ -85,5 +94,34 @@ export class UserResolver {
     async getAllUsers(): Promise<User[]> {
         return this.userService.findAll();
     }
-}
 
+    @Query(() => Profile)
+    @UseGuards(JwtAuthGuard)
+    async myProfile(@GetCurrentUser() currentUser: JwtPayload): Promise<Profile> {
+        return this.userService.getOrCreateProfileForUser(currentUser.userId);
+    }
+
+    @Mutation(() => Profile)
+    @UseGuards(JwtAuthGuard)
+    async updateMyProfile(
+        @GetCurrentUser() currentUser: JwtPayload,
+        @Args('input') input: UpdateProfileInput,
+    ): Promise<Profile> {
+        return this.profileService.updateOwnProfile(currentUser.userId, input);
+    }
+
+    @Mutation(() => CreatorProfile)
+    @UseGuards(JwtAuthGuard)
+    async updateMyCreatorProfile(
+        @GetCurrentUser() currentUser: JwtPayload,
+        @Args('input') input: UpdateCreatorProfileInput,
+    ): Promise<CreatorProfile> {
+        return this.profileService.updateOwnCreatorProfile(currentUser.userId, input);
+    }
+
+    @Query(() => PublicProfile)
+    async publicProfileBySlug(@Args('slug') slug: string): Promise<PublicProfile> {
+        const { profile, creatorProfile, campaigns } = await this.profileService.getPublicProfileBySlug(slug);
+        return { profile, creatorProfile: creatorProfile ?? undefined, campaigns };
+    }
+}

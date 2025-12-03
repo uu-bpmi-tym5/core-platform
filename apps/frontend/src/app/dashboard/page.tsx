@@ -137,28 +137,36 @@ export default function CampaignManagementDashboard() {
 
   const [readiness, setReadiness] = React.useState<ReadinessItem[]>(initialReadiness);
 
-  const fetchGraphQL = React.useCallback(async (query: string, variables?: any) => {
-    const response = await fetch(GRAPHQL_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authToken && { 'Authorization': `Bearer ${authToken}` }),
-      },
-      credentials: 'include',
-      body: JSON.stringify({ query, variables }),
-    });
+  const fetchGraphQL = React.useCallback(
+    async <T,>(query: string, variables?: Record<string, unknown>): Promise<T> => {
+      const response = await fetch(GRAPHQL_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken && { Authorization: `Bearer ${authToken}` }),
+        },
+        credentials: 'include',
+        body: JSON.stringify({ query, variables }),
+      });
 
-    const result = await response.json();
-    if (result.errors) {
-      console.error('GraphQL errors:', result.errors);
-    }
-    return result.data;
-  }, [authToken]);
+      const result = await response.json();
+      if (result.errors) {
+        console.error('GraphQL errors:', result.errors);
+        const message = (result.errors as { message?: string }[])
+          .map((e) => e.message ?? 'Unknown error')
+          .join(', ');
+        throw new Error(message || 'GraphQL error');
+      }
+      return result.data as T;
+    },
+    [authToken],
+  );
 
   const loadCampaigns = React.useCallback(async () => {
     try {
       setLoading(true);
-      const data = await fetchGraphQL(`
+      const data = await fetchGraphQL<{ myCampaigns: Campaign[] }>(
+        `
         query {
           myCampaigns {
             id
@@ -173,11 +181,10 @@ export default function CampaignManagementDashboard() {
             creatorId
           }
         }
-      `);
-      if (data && data.myCampaigns) {
-        setCampaigns(data.myCampaigns);
-      }
-    } catch (error: any) {
+      `,
+      );
+      setCampaigns(data.myCampaigns ?? []);
+    } catch (error) {
       console.error('Failed to load campaigns:', error);
     } finally {
       setLoading(false);
@@ -209,7 +216,7 @@ export default function CampaignManagementDashboard() {
     }
 
     try {
-      const data = await fetchGraphQL(
+      const data = await fetchGraphQL<{ createCampaign: Campaign }>(
         `
         mutation CreateCampaign($input: CreateCampaignInput!) {
           createCampaign(createCampaignInput: $input) {
@@ -233,7 +240,7 @@ export default function CampaignManagementDashboard() {
             goal: parseFloat(campaignForm.goal),
             category: campaignForm.category,
           },
-        }
+        },
       );
 
       const newCampaign = data.createCampaign;
@@ -243,8 +250,9 @@ export default function CampaignManagementDashboard() {
       setShowCreateForm(false);
 
       setTimeout(() => setFormSuccess(null), 5000);
-    } catch (error: any) {
-      setFormError(error.message || 'Failed to create campaign');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create campaign';
+      setFormError(message);
     }
   };
 
@@ -391,35 +399,31 @@ export default function CampaignManagementDashboard() {
 
   return (
     <main className="bg-muted/40 pb-16">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 pt-12 md:px-10">
-        <section>
-          <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
-            <div className="space-y-3">
-              <Badge variant="secondary" className="uppercase tracking-wide">
-                Campaign Dashboard
-              </Badge>
-              <div>
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-                  Manage Your Campaigns
-                </h1>
-                <p className="mt-2 max-w-2xl text-sm text-muted-foreground md:text-base">
-                  Create, track, and manage all your campaigns in one place.
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-none flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-              <Button onClick={() => setShowCreateForm(!showCreateForm)} size="sm">
-                {showCreateForm ? 'Cancel' : 'Create New Campaign'}
-              </Button>
-            </div>
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 pt-12 md:px-10">
+        <header className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
+              Campaigns
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Manage your campaigns, track performance, and prepare new launches.
+            </p>
           </div>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" onClick={() => router.push('/profile')}>
+              Edit profile
+            </Button>
+            <Button onClick={() => setShowCreateForm(!showCreateForm)} size="sm">
+              {showCreateForm ? 'Cancel' : 'Create New Campaign'}
+            </Button>
+          </div>
+        </header>
 
-          {formSuccess && (
-            <div className="mt-6 rounded-lg border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-700">
-              {formSuccess}
-            </div>
-          )}
-        </section>
+        {formSuccess && (
+          <div className="mt-6 rounded-lg border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-700">
+            {formSuccess}
+          </div>
+        )}
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard

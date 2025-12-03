@@ -1,4 +1,4 @@
-import { Injectable, Inject, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, Inject, UnauthorizedException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { CreateUserInput } from './dto/create-user.input';
 import { firstValueFrom } from 'rxjs';
@@ -6,6 +6,8 @@ import {Repository} from "typeorm";
 import {User} from "./entities/user.entity";
 import {Session} from "../auth/entities/session.entity";
 import { Role } from '../auth/enums/role.enum';
+import { Profile } from './entities/profile.entity';
+import { ProfileService } from './profile.service';
 
 
 @Injectable()
@@ -13,6 +15,7 @@ export class UsersService {
   constructor(
     @Inject('AUTH_SERVICE') private readonly authClient: ClientProxy,
     @Inject('USER_REPOSITORY') private readonly userRepository: Repository<User>,
+    private readonly profileService: ProfileService,
   ) {}
 
   async create(createUserInput: CreateUserInput) {
@@ -86,5 +89,13 @@ export class UsersService {
       throw new Error('User not found');
     }
     return user;
+  }
+
+  async getOrCreateProfileForUser(userId: string): Promise<Profile> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return this.profileService.getOrCreateProfileForUser(user.id, user.name);
   }
 }
