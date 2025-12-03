@@ -16,6 +16,7 @@ export interface CreatorProfile {
   creatorBio?: string | null;
   primaryCategory?: string | null;
   highlights?: string | null;
+  website?: string | null;
 }
 
 export interface PublicProfile {
@@ -117,6 +118,7 @@ export async function updateMyCreatorProfile(
     creatorBio?: string;
     primaryCategory?: string;
     highlights?: string;
+    website?: string;
   },
 ) {
   return fetchGraphQL<{ updateMyCreatorProfile: CreatorProfile }>(
@@ -128,6 +130,7 @@ export async function updateMyCreatorProfile(
           creatorBio
           primaryCategory
           highlights
+          website
         }
       }
     `,
