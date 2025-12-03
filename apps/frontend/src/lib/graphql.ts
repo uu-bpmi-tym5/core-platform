@@ -7,7 +7,6 @@ export interface Profile {
   displayName: string;
   avatarUrl?: string | null;
   location?: string | null;
-  website?: string | null;
   createdAt?: string;
 }
 
@@ -65,7 +64,6 @@ export async function getMyProfile(token: string | null) {
           displayName
           avatarUrl
           location
-          website
         }
       }
     `,
@@ -150,7 +148,6 @@ export async function getPublicProfileBySlug(slug: string) {
             displayName
             avatarUrl
             location
-            website
             createdAt
           }
           creatorProfile {
@@ -159,6 +156,7 @@ export async function getPublicProfileBySlug(slug: string) {
             creatorBio
             primaryCategory
             highlights
+            website
           }
           campaigns {
             id

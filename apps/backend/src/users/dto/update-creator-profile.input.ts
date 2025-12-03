@@ -1,5 +1,6 @@
 import { InputType, Field } from '@nestjs/graphql';
-import { IsBoolean, IsOptional, IsString, Length, MaxLength } from 'class-validator';
+import { InputType, Field } from '@nestjs/graphql';
+import { IsBoolean, IsOptional, IsString, Length, MaxLength, IsUrl } from 'class-validator';
 
 @InputType()
 export class UpdateCreatorProfileInput {
@@ -25,5 +26,12 @@ export class UpdateCreatorProfileInput {
   @IsString()
   @MaxLength(1000)
   highlights?: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  @IsUrl()
+  @MaxLength(2048)
+  website?: string;
 }
 

@@ -33,6 +33,10 @@ export class CreatorProfile {
   @Field(() => String, { nullable: true, description: 'Additional public information or highlights' })
   highlights: string | null;
 
+  @Column({ type: 'varchar', nullable: true })
+  @Field(() => String, { nullable: true, description: 'External website URL for the creator' })
+  website: string | null;
+
   // Private-only fields intentionally not exposed to GraphQL
   @Column({ type: 'jsonb', nullable: true })
   privateMetadata: Record<string, unknown> | null;

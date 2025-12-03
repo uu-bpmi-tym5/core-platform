@@ -34,9 +34,6 @@ export class Profile {
   @Field(() => String, { nullable: true, description: 'Location of the user' })
   location: string | null;
 
-  @Column({ type: 'varchar', nullable: true })
-  @Field(() => String, { nullable: true, description: 'Personal or project website URL' })
-  website: string | null;
 
   @Column({ type: 'jsonb', nullable: true })
   @Field(() => String, { nullable: true, description: 'Optional JSON blob with social links' })

@@ -23,12 +23,6 @@ export class UpdateProfileInput {
   @MaxLength(120)
   location?: string;
 
-  @Field(() => String, { nullable: true })
-  @IsOptional()
-  @IsString()
-  @IsUrl()
-  @MaxLength(2048)
-  website?: string;
 
   @Field(() => String, { nullable: true })
   @IsOptional()

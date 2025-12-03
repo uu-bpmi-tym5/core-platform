@@ -127,9 +127,9 @@ export default function PublicProfilePage() {
                   <span>{profile.location}</span>
                 </div>
               )}
-              {profile.website && (
+              {creatorProfile?.website && (
                 <a
-                  href={profile.website}
+                  href={creatorProfile.website}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1.5 text-primary hover:underline"

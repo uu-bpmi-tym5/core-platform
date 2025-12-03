@@ -21,7 +21,6 @@ export default function ProfilePage() {
     displayName: '',
     avatarUrl: '',
     location: '',
-    website: '',
     slug: '',
   });
 
@@ -30,6 +29,7 @@ export default function ProfilePage() {
     creatorBio: '',
     primaryCategory: '',
     highlights: '',
+    website: '',
   });
 
   const [editingField, setEditingField] = React.useState<string | null>(null);
@@ -53,7 +53,6 @@ export default function ProfilePage() {
           displayName: p.displayName ?? '',
           avatarUrl: p.avatarUrl ?? '',
           location: p.location ?? '',
-          website: p.website ?? '',
           slug: p.slug ?? '',
         });
 
@@ -66,6 +65,7 @@ export default function ProfilePage() {
               creatorBio: c.creatorBio ?? '',
               primaryCategory: c.primaryCategory ?? '',
               highlights: c.highlights ?? '',
+              website: c.website ?? '',
             });
           }
         } catch (e) {
@@ -263,37 +263,21 @@ export default function ProfilePage() {
             </div>
 
 
-            {/* Location, Website, Slug */}
-            <div className="grid gap-4 md:grid-cols-2">
-              <EditableField
-                label="Location"
-                field="location"
-                value={profile.location}
-                editingField={editingField}
-                editValue={editValue}
-                onStartEdit={startEdit}
-                onCancel={cancelEdit}
-                onSave={saveField}
-                onEditValueChange={setEditValue}
-                saving={saving}
-                icon={<MapPin className="h-4 w-4" />}
-                placeholder="City, Country"
-              />
-              <EditableField
-                label="Website"
-                field="website"
-                value={profile.website}
-                editingField={editingField}
-                editValue={editValue}
-                onStartEdit={startEdit}
-                onCancel={cancelEdit}
-                onSave={saveField}
-                onEditValueChange={setEditValue}
-                saving={saving}
-                icon={<Globe className="h-4 w-4" />}
-                placeholder="https://your-site.com"
-              />
-            </div>
+            {/* Location and Slug */}
+            <EditableField
+              label="Location"
+              field="location"
+              value={profile.location}
+              editingField={editingField}
+              editValue={editValue}
+              onStartEdit={startEdit}
+              onCancel={cancelEdit}
+              onSave={saveField}
+              onEditValueChange={setEditValue}
+              saving={saving}
+              icon={<MapPin className="h-4 w-4" />}
+              placeholder="City, Country"
+            />
 
             <EditableField
               label="Profile Slug"
@@ -384,6 +368,22 @@ export default function ProfilePage() {
               saving={saving}
               multiline
               placeholder="Key achievements, notable projects, or what makes your work unique..."
+            />
+
+            <EditableField
+              label="Website"
+              field="creator.website"
+              value={creatorProfile.website}
+              editingField={editingField}
+              editValue={editValue}
+              onStartEdit={startEdit}
+              onCancel={cancelEdit}
+              onSave={saveField}
+              onEditValueChange={setEditValue}
+              saving={saving}
+              icon={<Globe className="h-4 w-4" />}
+              placeholder="https://your-site.com"
+              helperText="External website or portfolio link"
             />
           </CardContent>
         </Card>
