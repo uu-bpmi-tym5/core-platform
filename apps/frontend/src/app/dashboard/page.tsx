@@ -24,6 +24,7 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Edit2 } from 'lucide-react';
 import { AdminDashboard } from '@/components/admin-dashboard';
 import { useUserRole } from '@/lib/useUserRole';
 
@@ -138,6 +139,15 @@ export default function CampaignManagementDashboard() {
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [campaignToDelete, setCampaignToDelete] = React.useState<string | null>(null);
 
+  // Edit dialog state
+  const [editingCampaign, setEditingCampaign] = React.useState<Campaign | null>(null);
+  const [editForm, setEditForm] = React.useState<CampaignFormData>({
+    name: '',
+    description: '',
+    goal: '',
+    category: '',
+  });
+
   const [readiness, setReadiness] = React.useState<ReadinessItem[]>(initialReadiness);
 
   const fetchGraphQL = React.useCallback(
@@ -195,18 +205,20 @@ export default function CampaignManagementDashboard() {
   }, [fetchGraphQL]);
 
   React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem('authToken');
+    if (token) {
       setAuthToken(token);
-      setIsAuthenticated(!!token);
-
-      if (!token) {
-        router.push('/login');
-      } else {
-        loadCampaigns();
-      }
+      setIsAuthenticated(true);
+    } else {
+      router.push('/login');
     }
-  }, [router, loadCampaigns]);
+  }, [router]);
+
+  React.useEffect(() => {
+    if (authToken) {
+      loadCampaigns();
+    }
+  }, [authToken, loadCampaigns]);
 
   const createCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -314,6 +326,61 @@ export default function CampaignManagementDashboard() {
       console.error('Failed to delete campaign:', error);
       setFormError(error.message || 'Failed to delete campaign');
       closeDeleteDialog();
+    }
+  };
+
+  const openEditDialog = (campaign: Campaign) => {
+    setEditingCampaign(campaign);
+    setEditForm({
+      name: campaign.name,
+      description: campaign.description,
+      goal: campaign.goal.toString(),
+      category: campaign.category,
+    });
+  };
+
+  const handleUpdateCampaign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCampaign) return;
+
+    try {
+      const data = await fetchGraphQL<{ updateCampaign: Campaign }>(
+        `
+        mutation UpdateCampaign($input: UpdateCampaignInput!) {
+          updateCampaign(updateCampaignInput: $input) {
+            id
+            name
+            description
+            goal
+            currentAmount
+            category
+            status
+            createdAt
+            updatedAt
+            creatorId
+          }
+        }
+      `,
+        {
+          input: {
+            id: editingCampaign.id,
+            name: editForm.name,
+            description: editForm.description,
+            goal: parseFloat(editForm.goal),
+            category: editForm.category,
+          },
+        }
+      );
+
+      const updatedCampaign = data.updateCampaign;
+      setCampaigns((prev) =>
+        prev.map((c) => (c.id === updatedCampaign.id ? updatedCampaign : c))
+      );
+      setEditingCampaign(null);
+      setFormSuccess('Campaign updated successfully!');
+      setTimeout(() => setFormSuccess(null), 5000);
+    } catch (error: any) {
+      setFormError(error.message || 'Failed to update campaign');
     }
   };
 
@@ -613,6 +680,7 @@ export default function CampaignManagementDashboard() {
                         status={status as CampaignStatus}
                         onSubmit={submitCampaign}
                         onDelete={openDeleteDialog}
+                        onEdit={openEditDialog}
                       />
                     </TabsContent>
                   ),
@@ -671,6 +739,68 @@ export default function CampaignManagementDashboard() {
               <Button variant="destructive" onClick={deleteCampaign}>
                 Delete
               </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Edit Dialog */}
+      {editingCampaign && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <CardTitle>Edit Campaign</CardTitle>
+              <CardDescription>Update your campaign details.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleUpdateCampaign} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">Campaign Name</Label>
+                  <Input
+                    id="edit-name"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-description">Description</Label>
+                  <Textarea
+                    id="edit-description"
+                    value={editForm.description}
+                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                    rows={4}
+                    required
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-goal">Funding Goal ($)</Label>
+                    <Input
+                      id="edit-goal"
+                      type="number"
+                      value={editForm.goal}
+                      onChange={(e) => setEditForm({ ...editForm, goal: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-category">Category</Label>
+                    <Input
+                      id="edit-category"
+                      value={editForm.category}
+                      onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-end pt-4">
+                  <Button type="button" variant="outline" onClick={() => setEditingCampaign(null)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">Save Changes</Button>
+                </div>
+              </form>
             </CardContent>
           </Card>
         </div>
@@ -741,11 +871,13 @@ function CampaignTable({
   status,
   onSubmit,
   onDelete,
+  onEdit,
 }: {
   campaigns: Campaign[];
   status: CampaignStatus;
   onSubmit: (campaignId: string) => void;
   onDelete: (campaignId: string) => void;
+  onEdit: (campaign: Campaign) => void;
 }) {
   const router = useRouter();
 
@@ -821,11 +953,19 @@ function CampaignTable({
                   {formatDate(campaign.updatedAt)}
                 </TableCell>
                 <TableCell className="text-right">
-                  <div className="inline-flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                    {status === 'DRAFT' && (
+                  <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onEdit(campaign)}
+                      title="Edit Campaign"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    {campaign.status === 'DRAFT' && (
                       <Button
-                        size="sm"
                         variant="outline"
+                        size="sm"
                         onClick={() => onSubmit(campaign.id)}
                       >
                         Submit
