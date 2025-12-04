@@ -2,6 +2,7 @@ import { Injectable, Inject, NotFoundException, BadRequestException } from '@nes
 import { Repository } from 'typeorm';
 import { WalletTX, TransactionType, TransactionStatus } from './entities/wallet-tx.entity';
 import { User } from '../users/entities/user.entity';
+import { Campaign } from '../campaigns/entities/campaign.entity';
 import { CampaignContribution } from '../campaigns/entities/campaign-contribution.entity';
 import { ContributeToCampaignInput, BankWithdrawalInput } from './dto';
 import { NotificationsClient } from '../notifications/notifications.client';
@@ -13,6 +14,8 @@ export class WalletService {
     private walletTxRepository: Repository<WalletTX>,
     @Inject('USER_REPOSITORY')
     private userRepository: Repository<User>,
+    @Inject('CAMPAIGN_REPOSITORY')
+    private campaignRepository: Repository<Campaign>,
     @Inject('CAMPAIGN_CONTRIBUTION_REPOSITORY')
     private contributionRepository: Repository<CampaignContribution>,
     private notificationsClient: NotificationsClient,
@@ -106,6 +109,9 @@ export class WalletService {
 
     // Odečti ze zůstatku
     await this.userRepository.decrement({ id: contributorId }, 'walletBalance', amount);
+
+    // Aktualizuj currentAmount kampaně
+    await this.campaignRepository.increment({ id: campaignId }, 'currentAmount', amount);
 
     // Pošli notifikaci přispěvateli
     await this.notificationsClient.createSuccessNotification(

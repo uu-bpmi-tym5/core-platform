@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { getMyProfile, getMyCreatorProfile, updateMyProfile, updateMyCreatorProfile } from '@/lib/graphql';
+import { getMyProfile, getMyCreatorProfile, updateMyProfile, updateMyCreatorProfile, getMyCampaigns } from '@/lib/graphql';
 import { Pencil, Check, X, MapPin, Globe, Hash, LogOut, Shield } from 'lucide-react';
 import { useUserRole } from '@/lib/useUserRole';
 import { getRoleDisplayName } from '@/lib/roles';
@@ -19,6 +19,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState<string | null>(null);
+  const [hasCampaigns, setHasCampaigns] = React.useState(false);
 
   const [profile, setProfile] = React.useState({
     displayName: '',
@@ -59,20 +60,34 @@ export default function ProfilePage() {
           slug: p.slug ?? '',
         });
 
-        try {
-          const creatorData = await getMyCreatorProfile(token);
-          const c = creatorData.myCreatorProfile;
-          if (c) {
-            setCreatorProfile({
-              isPublic: c.isPublic,
-              creatorBio: c.creatorBio ?? '',
-              primaryCategory: c.primaryCategory ?? '',
-              highlights: c.highlights ?? '',
-              website: c.website ?? '',
-            });
+        // Check if user has campaigns (only for non-admins)
+        if (!isAdmin) {
+          try {
+            const campaignsData = await getMyCampaigns(token);
+            const userHasCampaigns = campaignsData.myCampaigns && campaignsData.myCampaigns.length > 0;
+            setHasCampaigns(userHasCampaigns);
+
+            // Only load creator profile if user has campaigns
+            if (userHasCampaigns) {
+              try {
+                const creatorData = await getMyCreatorProfile(token);
+                const c = creatorData.myCreatorProfile;
+                if (c) {
+                  setCreatorProfile({
+                    isPublic: c.isPublic,
+                    creatorBio: c.creatorBio ?? '',
+                    primaryCategory: c.primaryCategory ?? '',
+                    highlights: c.highlights ?? '',
+                    website: c.website ?? '',
+                  });
+                }
+              } catch (e) {
+                console.warn('Failed to load creator profile', e);
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to load campaigns', e);
           }
-        } catch (e) {
-          console.warn('Failed to load creator profile', e);
         }
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Failed to load profile';
@@ -81,7 +96,7 @@ export default function ProfilePage() {
         setLoading(false);
       }
     })();
-  }, [router]);
+  }, [router, isAdmin]);
 
   const startEdit = (field: string, currentValue: string) => {
     setEditingField(field);
@@ -308,8 +323,8 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        {/* Creator Profile Card - Hidden for Admins */}
-        {!isAdmin && (
+        {/* Creator Profile Card - Only shown for users with campaigns */}
+        {!isAdmin && hasCampaigns && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">

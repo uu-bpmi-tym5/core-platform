@@ -747,6 +747,8 @@ function CampaignTable({
   onSubmit: (campaignId: string) => void;
   onDelete: (campaignId: string) => void;
 }) {
+  const router = useRouter();
+
   if (campaigns.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/50 py-10 text-center">
@@ -783,7 +785,11 @@ function CampaignTable({
               : 0;
 
             return (
-              <TableRow key={campaign.id}>
+              <TableRow
+                key={campaign.id}
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => router.push(`/dashboard/campaigns/${campaign.id}`)}
+              >
                 <TableCell className="space-y-1">
                   <p className="text-sm font-semibold text-foreground">
                     {campaign.name}
@@ -815,7 +821,7 @@ function CampaignTable({
                   {formatDate(campaign.updatedAt)}
                 </TableCell>
                 <TableCell className="text-right">
-                  <div className="inline-flex items-center gap-2">
+                  <div className="inline-flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                     {status === 'DRAFT' && (
                       <Button
                         size="sm"

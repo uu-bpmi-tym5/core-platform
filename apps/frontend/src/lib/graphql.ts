@@ -372,3 +372,168 @@ export async function rejectCampaign(token: string, campaignId: string) {
   );
 }
 
+export async function getCampaignById(campaignId: string) {
+  return fetchGraphQL<{ campaign: Campaign }>(
+    `
+      query GetCampaignById($id: String!) {
+        campaign(id: $id) {
+          id
+          name
+          description
+          goal
+          currentAmount
+          category
+          status
+          createdAt
+          updatedAt
+          creator {
+            id
+            email
+          }
+        }
+      }
+    `,
+    { id: campaignId },
+  );
+}
+
+export interface ContributionResult {
+  id: string;
+  campaignId: string;
+  contributorId: string;
+  amount: number;
+  message?: string | null;
+  createdAt: string;
+}
+
+export interface CampaignContribution {
+  id: string;
+  campaignId: string;
+  contributorId: string;
+  amount: number;
+  message?: string | null;
+  isRefunded: boolean;
+  createdAt: string;
+  contributor?: {
+    id: string;
+    email: string;
+  };
+}
+
+export interface CampaignContributionStats {
+  totalContributions: number;
+  totalAmount: number;
+  averageContribution: number;
+  contributorsCount: number;
+}
+
+export async function contributeToCampaign(
+  token: string | null,
+  input: { campaignId: string; amount: number; message?: string }
+) {
+  return fetchGraphQL<{ contributeToCampaign: ContributionResult }>(
+    `
+      mutation ContributeToCampaign($input: ContributeToCampaignInput!) {
+        contributeToCampaign(input: $input) {
+          id
+          campaignId
+          contributorId
+          amount
+          message
+          createdAt
+        }
+      }
+    `,
+    { input },
+    token,
+  );
+}
+
+export async function getCampaignContributions(token: string | null, campaignId: string) {
+  return fetchGraphQL<{ campaignContributions: CampaignContribution[] }>(
+    `
+      query GetCampaignContributions($campaignId: String!) {
+        campaignContributions(campaignId: $campaignId) {
+          id
+          campaignId
+          contributorId
+          amount
+          message
+          isRefunded
+          createdAt
+          contributor {
+            id
+            email
+          }
+        }
+      }
+    `,
+    { campaignId },
+    token,
+  );
+}
+
+export async function getCampaignContributionStats(token: string | null, campaignId: string) {
+  return fetchGraphQL<{ campaignContributionStats: CampaignContributionStats }>(
+    `
+      query GetCampaignContributionStats($campaignId: String!) {
+        campaignContributionStats(campaignId: $campaignId) {
+          totalContributions
+          totalAmount
+          averageContribution
+          contributorsCount
+        }
+      }
+    `,
+    { campaignId },
+    token,
+  );
+}
+
+export async function updateCampaign(
+  token: string | null,
+  input: {
+    id: string;
+    name?: string;
+    description?: string;
+    goal?: number;
+    category?: string;
+  }
+) {
+  return fetchGraphQL<{ updateCampaign: Campaign }>(
+    `
+      mutation UpdateCampaign($input: UpdateCampaignInput!) {
+        updateCampaign(updateCampaignInput: $input) {
+          id
+          name
+          description
+          goal
+          currentAmount
+          category
+          status
+          createdAt
+          updatedAt
+        }
+      }
+    `,
+    { input },
+    token,
+  );
+}
+
+export async function getMyCampaigns(token: string | null) {
+  return fetchGraphQL<{ myCampaigns: Campaign[] }>(
+    `
+      query GetMyCampaigns {
+        myCampaigns {
+          id
+          name
+          status
+        }
+      }
+    `,
+    undefined,
+    token,
+  );
+}
+
