@@ -41,6 +41,10 @@ export class Campaign {
   @Field(() => Number, { description: 'Goal amount of the campaign' })
   goal: number;
 
+  @Column({ nullable: true })
+  @Field(() => Date, { description: 'End date of the campaign', nullable: true })
+  endDate?: Date;
+
   @Column('decimal', { precision: 10, scale: 2, default: 0 })
   @Field(() => Number, { description: 'Current amount raised for the campaign' })
   currentAmount: number;

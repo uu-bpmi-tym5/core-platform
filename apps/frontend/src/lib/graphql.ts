@@ -50,7 +50,7 @@ export interface WalletTX {
   createdAt: string;
 }
 
-async function fetchGraphQL<T>(query: string, variables?: Record<string, unknown>, token?: string | null): Promise<T> {
+export async function fetchGraphQL<T>(query: string, variables?: Record<string, unknown>, token?: string | null): Promise<T> {
   const response = await fetch(GRAPHQL_ENDPOINT, {
     method: 'POST',
     headers: {
@@ -197,8 +197,8 @@ export async function getPublicProfileBySlug(slug: string) {
 export async function getWalletBalance(token: string | null) {
   return fetchGraphQL<{ walletBalance: number }>(
     `
-      query WalletBalance { 
-        walletBalance 
+      query WalletBalance {
+        walletBalance
       }
     `,
     undefined,

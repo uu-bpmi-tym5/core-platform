@@ -25,6 +25,7 @@ export class CampaignsService {
     const campaign = this.campaignRepository.create({
       ...createCampaignInput,
       creatorId,
+      endDate: createCampaignInput.endDate,
     });
 
     const savedCampaign = await this.campaignRepository.save(campaign);
@@ -48,6 +49,14 @@ export class CampaignsService {
       where: {
         status: CampaignStatus.APPROVED
       }
+    });
+  }
+
+  async findCampaignsByStatus(status: CampaignStatus): Promise<Campaign[]> {
+    return this.campaignRepository.find({
+      relations: ['creator'],
+      where: { status },
+      order: { createdAt: 'DESC' }
     });
   }
 

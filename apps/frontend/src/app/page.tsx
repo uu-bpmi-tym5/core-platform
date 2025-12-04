@@ -20,6 +20,7 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs';
 import { useRouter } from 'next/navigation';
+import { CampaignProgress } from '@/components/campaign-progress';
 
 const GRAPHQL_ENDPOINT = process.env.NEXT_PUBLIC_GRAPHQL_URL ?? 'http://localhost:3030/graphql';
 
@@ -42,6 +43,8 @@ interface Campaign {
   category: string;
   status: string;
   createdAt: string;
+  daysRemaining?: number;
+  contributorsCount?: number;
 }
 
 interface WalletTransaction {
@@ -113,6 +116,17 @@ export default function DemoPage() {
         }
         break;
     }
+    // Polling for campaigns
+    let intervalId: NodeJS.Timeout;
+    if (activeTab === 'campaigns') {
+      intervalId = setInterval(() => {
+        loadCampaigns();
+      }, 5000); // Poll every 5 seconds
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, isAuthenticated]);
 
@@ -249,6 +263,8 @@ export default function DemoPage() {
             category
             status
             createdAt
+            daysRemaining
+            contributorsCount
           }
         }
       `);
@@ -413,6 +429,12 @@ export default function DemoPage() {
               </div>
             </div>
             <div className="flex flex-none flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+              <Button onClick={() => router.push('/browse')} variant="default">
+                Browse Campaigns
+              </Button>
+              <Button onClick={() => router.push('/admin')} variant="secondary">
+                Admin Dashboard
+              </Button>
               <Button onClick={() => router.push('/dashboard')} variant="outline">
                 Go to Dashboard
               </Button>
@@ -660,11 +682,13 @@ export default function DemoPage() {
                             </div>
                             <Badge>{campaign.status}</Badge>
                           </div>
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground">{campaign.category}</span>
-                            <span className="font-medium">
-                              ${campaign.currentAmount} / ${campaign.goal}
-                            </span>
+                          <div className="pt-2">
+                            <CampaignProgress
+                              goal={campaign.goal}
+                              currentAmount={campaign.currentAmount}
+                              contributorsCount={campaign.contributorsCount ?? 0}
+                              daysRemaining={campaign.daysRemaining ?? null}
+                            />
                           </div>
                         </div>
                       ))

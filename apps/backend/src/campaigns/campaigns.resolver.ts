@@ -1,7 +1,7 @@
-import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, ResolveField, Parent } from '@nestjs/graphql';
 import { UseGuards, ForbiddenException } from '@nestjs/common';
 import { CampaignsService } from './campaigns.service';
-import { Campaign } from './entities/campaign.entity';
+import { Campaign, CampaignStatus } from './entities/campaign.entity';
 import { CampaignContribution } from './entities/campaign-contribution.entity';
 import { CreateCampaignInput, UpdateCampaignInput } from './dto';
 import { CampaignContributionStats } from './dto/campaign-contribution-stats.dto';
@@ -28,6 +28,15 @@ export class CampaignsResolver {
   @Query(() => [Campaign], { name: 'campaigns' })
   async findAllCampaigns(): Promise<Campaign[]> {
     return this.campaignsService.findAllCampaigns();
+  }
+
+  @Query(() => [Campaign], { name: 'adminCampaigns' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequirePermissions(Permission.APPROVE_CAMPAIGN)
+  async findAdminCampaigns(
+    @Args('status', { type: () => CampaignStatus }) status: CampaignStatus,
+  ): Promise<Campaign[]> {
+    return this.campaignsService.findCampaignsByStatus(status);
   }
 
   @Query(() => Campaign, { name: 'campaign' })
@@ -175,5 +184,21 @@ export class CampaignsResolver {
       throw new ForbiddenException('Access only for campaign owner or administrator');
     }
     return this.campaignsService.getCampaignContributionStats(campaignId);
+  }
+
+  @ResolveField(() => Number, { nullable: true })
+  async daysRemaining(@Parent() campaign: Campaign): Promise<number | null> {
+    if (!campaign.endDate) return null;
+    const now = new Date();
+    const end = new Date(campaign.endDate);
+    const diffTime = end.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+  }
+
+  @ResolveField(() => Number)
+  async contributorsCount(@Parent() campaign: Campaign): Promise<number> {
+    const stats = await this.campaignsService.getCampaignContributionStats(campaign.id);
+    return stats.contributorsCount;
   }
 }

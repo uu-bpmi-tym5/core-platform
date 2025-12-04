@@ -15,6 +15,9 @@ export class CreateCampaignInput {
   @Field(() => String)
   category: string;
 
+  @Field(() => Date, { nullable: true })
+  endDate?: Date;
+
   @Field(() => CampaignStatus, { nullable: true })
   status?: CampaignStatus;
 }
