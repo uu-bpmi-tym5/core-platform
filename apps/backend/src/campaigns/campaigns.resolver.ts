@@ -43,6 +43,13 @@ export class CampaignsResolver {
     return this.campaignsService.findCampaignsByCreator(user.userId);
   }
 
+  @Query(() => [Campaign], { name: 'pendingCampaigns' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequirePermissions(Permission.APPROVE_CAMPAIGN)
+  async findPendingCampaigns(): Promise<Campaign[]> {
+    return this.campaignsService.findPendingCampaigns();
+  }
+
   @Mutation(() => Campaign)
   @UseGuards(JwtAuthGuard)
   async updateCampaign(

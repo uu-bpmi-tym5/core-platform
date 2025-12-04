@@ -8,10 +8,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getMyProfile, getMyCreatorProfile, updateMyProfile, updateMyCreatorProfile } from '@/lib/graphql';
-import { Pencil, Check, X, MapPin, Globe, Hash, LogOut } from 'lucide-react';
+import { Pencil, Check, X, MapPin, Globe, Hash, LogOut, Shield } from 'lucide-react';
+import { useUserRole } from '@/lib/useUserRole';
+import { getRoleDisplayName } from '@/lib/roles';
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { isAdmin, userRole } = useUserRole();
   const [authToken, setAuthToken] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -176,13 +179,21 @@ export default function ProfilePage() {
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">My Profile</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold tracking-tight">My Profile</h1>
+              {isAdmin && userRole && (
+                <Badge variant="outline" className="border-red-500 bg-red-500/10 text-red-700 gap-1">
+                  <Shield className="h-3 w-3" />
+                  {getRoleDisplayName(userRole)}
+                </Badge>
+              )}
+            </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Manage your profile and creator settings
+              {isAdmin ? 'Manage your admin profile settings' : 'Manage your profile and creator settings'}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {profile.slug && (
+            {!isAdmin && profile.slug && (
               <Button variant="outline" onClick={() => router.push(`/profile/${profile.slug}`)}>
                 View Public Profile
               </Button>
@@ -297,7 +308,8 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        {/* Creator Profile Card */}
+        {/* Creator Profile Card - Hidden for Admins */}
+        {!isAdmin && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -387,6 +399,7 @@ export default function ProfilePage() {
             />
           </CardContent>
         </Card>
+        )}
       </div>
     </main>
   );

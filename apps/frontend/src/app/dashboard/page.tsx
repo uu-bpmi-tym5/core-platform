@@ -24,6 +24,8 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { AdminDashboard } from '@/components/admin-dashboard';
+import { useUserRole } from '@/lib/useUserRole';
 
 const GRAPHQL_ENDPOINT = process.env.NEXT_PUBLIC_GRAPHQL_URL ?? 'http://localhost:3030/graphql';
 
@@ -111,6 +113,7 @@ const statusBadgeVariant: Record<CampaignStatus, 'outline' | 'warning' | 'succes
 
 export default function CampaignManagementDashboard() {
   const router = useRouter();
+  const { isAdmin, isLoading: roleLoading } = useUserRole();
   const [authToken, setAuthToken] = React.useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
@@ -382,17 +385,26 @@ export default function CampaignManagementDashboard() {
     );
   };
 
-  if (!isAuthenticated || loading) {
+  if (!isAuthenticated || loading || roleLoading) {
     return (
       <main className="bg-muted/40 min-h-screen flex items-center justify-center">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>{loading ? 'Loading...' : 'Authentication Required'}</CardTitle>
+            <CardTitle>{loading || roleLoading ? 'Loading...' : 'Authentication Required'}</CardTitle>
             <CardDescription>
-              {loading ? 'Loading your campaigns' : 'Please login to access the dashboard'}
+              {loading || roleLoading ? 'Loading your dashboard' : 'Please login to access the dashboard'}
             </CardDescription>
           </CardHeader>
         </Card>
+      </main>
+    );
+  }
+
+  // Show admin dashboard for admin users
+  if (isAdmin && authToken) {
+    return (
+      <main className="bg-muted/40 pb-16 min-h-screen">
+        <AdminDashboard authToken={authToken} />
       </main>
     );
   }

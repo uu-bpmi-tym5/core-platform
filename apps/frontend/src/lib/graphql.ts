@@ -50,6 +50,22 @@ export interface WalletTX {
   createdAt: string;
 }
 
+export interface Campaign {
+  id: string;
+  name: string;
+  description: string;
+  goal: number;
+  currentAmount: number;
+  category: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  creator?: {
+    id: string;
+    email: string;
+  };
+}
+
 async function fetchGraphQL<T>(query: string, variables?: Record<string, unknown>, token?: string | null): Promise<T> {
   const response = await fetch(GRAPHQL_ENDPOINT, {
     method: 'POST',
@@ -272,3 +288,87 @@ export async function withdrawToBank(
     token,
   );
 }
+
+export async function getPublicCampaigns() {
+  return fetchGraphQL<{ campaigns: Campaign[] }>(
+    `
+      query GetPublicCampaigns {
+        campaigns {
+          id
+          name
+          description
+          goal
+          currentAmount
+          category
+          status
+          createdAt
+          updatedAt
+          creator {
+            id
+            email
+          }
+        }
+      }
+    `,
+  );
+}
+
+// Admin functions
+export async function getPendingCampaigns(token: string) {
+  return fetchGraphQL<{ pendingCampaigns: Campaign[] }>(
+    `
+      query GetPendingCampaigns {
+        pendingCampaigns {
+          id
+          name
+          description
+          goal
+          currentAmount
+          category
+          status
+          createdAt
+          updatedAt
+          creator {
+            id
+            email
+          }
+        }
+      }
+    `,
+    undefined,
+    token,
+  );
+}
+
+export async function approveCampaign(token: string, campaignId: string) {
+  return fetchGraphQL<{ approveCampaign: Campaign }>(
+    `
+      mutation ApproveCampaign($campaignId: String!) {
+        approveCampaign(campaignId: $campaignId) {
+          id
+          name
+          status
+        }
+      }
+    `,
+    { campaignId },
+    token,
+  );
+}
+
+export async function rejectCampaign(token: string, campaignId: string) {
+  return fetchGraphQL<{ rejectCampaign: Campaign }>(
+    `
+      mutation RejectCampaign($campaignId: String!) {
+        rejectCampaign(campaignId: $campaignId) {
+          id
+          name
+          status
+        }
+      }
+    `,
+    { campaignId },
+    token,
+  );
+}
+

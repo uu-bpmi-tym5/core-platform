@@ -6,767 +6,257 @@ import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
 import { useRouter } from 'next/navigation';
+import { getPublicCampaigns, type Campaign } from '@/lib/graphql';
+import { Heart, MessageCircle, Share2, Bookmark, Target, Clock } from 'lucide-react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
-const GRAPHQL_ENDPOINT = process.env.NEXT_PUBLIC_GRAPHQL_URL ?? 'http://localhost:3030/graphql';
-
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: string;
-  status: string;
-  createdAt: string;
-  readAt?: string;
-}
-
-interface Campaign {
-  id: string;
-  name: string;
-  description: string;
-  goal: number;
-  currentAmount: number;
-  category: string;
-  status: string;
-  createdAt: string;
-}
-
-interface WalletTransaction {
-  id: string;
-  type: string;
-  amount: number;
-  description?: string;
-  createdAt: string;
-  status: string;
-}
-
-export default function DemoPage() {
+export default function FeedPage() {
   const router = useRouter();
-  const [authToken, setAuthToken] = React.useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState('notifications');
-
-  // Notifications state
-  const [notifications, setNotifications] = React.useState<Notification[]>([]);
-  const [notificationForm, setNotificationForm] = React.useState({
-    title: '',
-    message: '',
-    type: 'info',
-  });
-  const [notificationStatus, setNotificationStatus] = React.useState('');
-
-  // Campaigns state
   const [campaigns, setCampaigns] = React.useState<Campaign[]>([]);
-  const [campaignForm, setCampaignForm] = React.useState({
-    name: '',
-    description: '',
-    goal: '',
-    category: '',
-  });
-  const [campaignStatus, setCampaignStatus] = React.useState('');
-
-  // Wallet state
-  const [walletBalance, setWalletBalance] = React.useState<number | null>(null);
-  const [transactions, setTransactions] = React.useState<WalletTransaction[]>([]);
-  const [depositAmount, setDepositAmount] = React.useState('');
-  const [walletStatus, setWalletStatus] = React.useState('');
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('authToken');
-      setAuthToken(token);
-      setIsAuthenticated(!!token);
-    }
+    loadCampaigns();
   }, []);
 
-  // Load data when tab changes
-  React.useEffect(() => {
-    if (!isAuthenticated) return;
-
-    switch (activeTab) {
-      case 'notifications':
-        if (notifications.length === 0) {
-          loadNotifications();
-        }
-        break;
-      case 'campaigns':
-        if (campaigns.length === 0) {
-          loadCampaigns();
-        }
-        break;
-      case 'wallet':
-        if (walletBalance === null) {
-          loadWallet();
-        }
-        break;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, isAuthenticated]);
-
-  const fetchGraphQL = async (query: string, variables?: any) => {
-    const response = await fetch(GRAPHQL_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authToken && { 'Authorization': `Bearer ${authToken}` }),
-      },
-      credentials: 'include',
-      body: JSON.stringify({ query, variables }),
-    });
-
-    const result = await response.json();
-    if (result.errors) {
-      throw new Error(result.errors[0].message);
-    }
-    return result.data;
-  };
-
-  // Notifications functions
-  const loadNotifications = async () => {
-    try {
-      const data = await fetchGraphQL(`
-        query {
-          getMyNotifications {
-            id
-            title
-            message
-            type
-            status
-            createdAt
-            readAt
-          }
-        }
-      `);
-      setNotifications(data.getMyNotifications);
-      setNotificationStatus('Notifications loaded successfully');
-    } catch (error: any) {
-      setNotificationStatus(`Error: ${error.message}`);
-    }
-  };
-
-  const createNotification = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      // Get current user ID first
-      const userData = await fetchGraphQL(`
-        query {
-          me {
-            id
-          }
-        }
-      `);
-
-      const data = await fetchGraphQL(
-        `
-        mutation CreateNotification($input: CreateNotificationInput!) {
-          createNotification(input: $input) {
-            id
-            title
-            message
-            type
-            status
-            createdAt
-            readAt
-          }
-        }
-      `,
-        {
-          input: {
-            title: notificationForm.title,
-            message: notificationForm.message,
-            type: notificationForm.type.toUpperCase(),
-            userId: userData.me.id,
-          },
-        }
-      );
-
-      const newNotification = data.createNotification;
-
-      // Add notification to the top of the list
-      setNotifications((prev) => [newNotification, ...prev]);
-
-      setNotificationStatus('Notification created successfully!');
-      setNotificationForm({ title: '', message: '', type: 'info' });
-    } catch (error: any) {
-      setNotificationStatus(`Error: ${error.message}`);
-    }
-  };
-
-  const markAsRead = async (notificationId: string) => {
-    try {
-      const data = await fetchGraphQL(
-        `
-        mutation MarkAsRead($notificationId: String!) {
-          markNotificationAsRead(notificationId: $notificationId) {
-            id
-            status
-            readAt
-          }
-        }
-      `,
-        { notificationId }
-      );
-
-      // Update the notification in the list
-      setNotifications((prev) =>
-        prev.map((notif) =>
-          notif.id === notificationId
-            ? { ...notif, status: data.markNotificationAsRead.status, readAt: data.markNotificationAsRead.readAt }
-            : notif
-        )
-      );
-
-      setNotificationStatus('Notification marked as read');
-    } catch (error: any) {
-      setNotificationStatus(`Error: ${error.message}`);
-    }
-  };
-
-  // Campaigns functions
   const loadCampaigns = async () => {
     try {
-      const data = await fetchGraphQL(`
-        query {
-          myCampaigns {
-            id
-            name
-            description
-            goal
-            currentAmount
-            category
-            status
-            createdAt
-          }
-        }
-      `);
-      setCampaigns(data.myCampaigns);
-      setCampaignStatus('Campaigns loaded successfully');
-    } catch (error: any) {
-      setCampaignStatus(`Error: ${error.message}`);
+      setLoading(true);
+      setError(null);
+      const data = await getPublicCampaigns();
+      setCampaigns(data.campaigns);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load campaigns';
+      setError(message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const createCampaign = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const data = await fetchGraphQL(
-        `
-        mutation CreateCampaign($input: CreateCampaignInput!) {
-          createCampaign(createCampaignInput: $input) {
-            id
-            name
-            description
-            goal
-            currentAmount
-            category
-            status
-            createdAt
-          }
-        }
-      `,
-        {
-          input: {
-            name: campaignForm.name,
-            description: campaignForm.description,
-            goal: parseFloat(campaignForm.goal),
-            category: campaignForm.category,
-          },
-        }
-      );
-
-      const newCampaign = data.createCampaign;
-
-      // Add campaign to the top of the list
-      setCampaigns((prev) => [newCampaign, ...prev]);
-
-      setCampaignStatus('Campaign created successfully!');
-      setCampaignForm({ name: '', description: '', goal: '', category: '' });
-    } catch (error: any) {
-      setCampaignStatus(`Error: ${error.message}`);
-    }
+  const calculateProgress = (current: number, goal: number) => {
+    return Math.min((current / goal) * 100, 100);
   };
 
-  // Wallet functions
-  const loadWallet = async () => {
-    try {
-      const balanceData = await fetchGraphQL(`
-        query {
-          walletBalance
-        }
-      `);
-      setWalletBalance(balanceData.walletBalance);
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-      const txData = await fetchGraphQL(`
-        query {
-          walletTransactions {
-            id
-            type
-            amount
-            description
-            createdAt
-            status
-          }
-        }
-      `);
-      setTransactions(txData.walletTransactions);
-      setWalletStatus('Wallet loaded successfully');
-    } catch (error: any) {
-      setWalletStatus(`Error: ${error.message}`);
-    }
+    if (diffInSeconds < 60) return 'just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    return date.toLocaleDateString();
   };
 
-  const depositMoney = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const data = await fetchGraphQL(
-        `
-        mutation DepositMoney($amount: Float!, $externalReference: String) {
-          depositMoney(amount: $amount, externalReference: $externalReference) {
-            id
-            amount
-            type
-            description
-            createdAt
-            status
-          }
-        }
-      `,
-        {
-          amount: parseFloat(depositAmount),
-          externalReference: `DEMO-${Date.now()}`,
-        }
-      );
-
-      const newTransaction = data.depositMoney;
-      const depositAmountNum = parseFloat(depositAmount);
-
-      // Update balance immediately
-      setWalletBalance((prev) => (prev !== null ? prev + depositAmountNum : depositAmountNum));
-
-      // Add transaction to the top of the list
-      setTransactions((prev) => [newTransaction, ...prev]);
-
-      setWalletStatus('Deposit successful!');
-      setDepositAmount('');
-    } catch (error: any) {
-      setWalletStatus(`Error: ${error.message}`);
+  const getCreatorInitials = (campaign: Campaign) => {
+    if (campaign.creator?.email) {
+      return campaign.creator.email.substring(0, 2).toUpperCase();
     }
+    return campaign.name.substring(0, 2).toUpperCase();
   };
-
-  if (!isAuthenticated) {
-    return (
-      <main className="bg-muted/40 min-h-screen flex items-center justify-center p-6">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Platform Demo</CardTitle>
-            <CardDescription>
-              Please login to access the demo features
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              This demo showcases the notifications, campaigns, and wallet microservices.
-            </p>
-            <div className="flex gap-2">
-              <Button onClick={() => router.push('/login')} className="flex-1">
-                Login
-              </Button>
-              <Button onClick={() => router.push('/signup')} variant="outline" className="flex-1">
-                Sign Up
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </main>
-    );
-  }
 
   return (
-    <main className="bg-muted/40 min-h-screen pb-16">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 pt-12 md:px-10">
-        <section>
-          <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
-            <div className="space-y-3">
-              <Badge variant="secondary" className="uppercase tracking-wide">
-                Platform Demo
-              </Badge>
-              <div>
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-                    Demo
-                </h1>
-                <p className="mt-2 max-w-2xl text-sm text-muted-foreground md:text-base">
-                  Test and explore the notifications, campaigns, and wallet functionality
+    <main className="bg-background min-h-screen">
+      {/* Header */}
+      <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-4">
+          <h1 className="text-xl font-bold">Discover</h1>
+          <Badge variant="outline" className="text-xs">WIP Feed</Badge>
+        </div>
+      </div>
+
+      {/* Feed Container */}
+      <div className="mx-auto max-w-2xl">
+        {/* Loading State */}
+        {loading && (
+          <div className="flex flex-col gap-4 p-4">
+            {[1, 2, 3].map((i) => (
+              <Card key={i} className="animate-pulse">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="h-10 w-10 rounded-full bg-muted" />
+                    <div className="space-y-2">
+                      <div className="h-4 w-32 rounded bg-muted" />
+                      <div className="h-3 w-20 rounded bg-muted" />
+                    </div>
+                  </div>
+                  <div className="h-48 rounded-lg bg-muted mb-4" />
+                  <div className="h-4 w-3/4 rounded bg-muted" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <div className="p-4">
+            <Card className="border-destructive">
+              <CardContent className="p-6 text-center">
+                <p className="text-sm text-destructive mb-3">{error}</p>
+                <Button onClick={loadCampaigns} variant="outline" size="sm">
+                  Try Again
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!loading && !error && campaigns.length === 0 && (
+          <div className="p-4">
+            <Card>
+              <CardContent className="p-8 text-center">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                  <Target className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <h3 className="font-semibold mb-1">No campaigns yet</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Be the first to create a campaign and inspire others!
                 </p>
-              </div>
-            </div>
-            <div className="flex flex-none flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-              <Button onClick={() => router.push('/dashboard')} variant="outline">
-                Go to Dashboard
-              </Button>
-              <Button
-                onClick={() => {
-                  localStorage.removeItem('authToken');
-                  router.push('/login');
-                }}
-                variant="destructive"
-              >
-                Logout
+                <Button onClick={() => router.push('/dashboard')} size="sm">
+                  Create Campaign
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Campaign Feed */}
+        {!loading && !error && campaigns.length > 0 && (
+          <div className="divide-y divide-border">
+            {campaigns.map((campaign) => (
+              <article key={campaign.id} className="bg-background">
+                {/* Post Header */}
+                <div className="flex items-center justify-between p-4 pb-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10 cursor-pointer" onClick={() => router.push(`/campaigns/${campaign.id}`)}>
+                      <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                        {getCreatorInitials(campaign)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="font-semibold text-sm cursor-pointer hover:underline"
+                          onClick={() => router.push(`/campaigns/${campaign.id}`)}
+                        >
+                          {campaign.name}
+                        </span>
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                          {campaign.category}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        <span>{formatTimeAgo(campaign.createdAt)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Bookmark className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* Campaign Image/Preview - Placeholder gradient */}
+                <div
+                  className="relative aspect-video bg-gradient-to-br from-primary/20 via-primary/10 to-secondary cursor-pointer overflow-hidden"
+                  onClick={() => router.push(`/campaigns/${campaign.id}`)}
+                >
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-center p-6">
+                      <Target className="h-12 w-12 mx-auto mb-3 text-primary/50" />
+                      <p className="text-lg font-semibold text-foreground/80">{campaign.name}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="px-4 pt-3">
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                    <div
+                      className="h-full bg-primary transition-all duration-500"
+                      style={{
+                        width: `${calculateProgress(campaign.currentAmount, campaign.goal)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Funding Stats */}
+                <div className="px-4 pt-3 pb-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div>
+                        <span className="font-bold text-lg">${campaign.currentAmount.toLocaleString()}</span>
+                        <span className="text-muted-foreground text-sm"> pledged</span>
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-semibold text-primary">
+                          {calculateProgress(campaign.currentAmount, campaign.goal).toFixed(0)}%
+                        </span>
+                        <span className="text-muted-foreground"> funded</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <Target className="h-4 w-4" />
+                      <span>${campaign.goal.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div className="px-4 pb-3">
+                  <p className="text-sm text-foreground/90 line-clamp-2">
+                    {campaign.description}
+                  </p>
+                  <button
+                    className="text-sm text-muted-foreground hover:text-foreground mt-1"
+                    onClick={() => router.push(`/campaigns/${campaign.id}`)}
+                  >
+                    Read more
+                  </button>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-between px-4 py-3 border-t border-border/50">
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="sm" className="gap-2 h-9 px-3">
+                      <Heart className="h-5 w-5" />
+                      <span className="text-sm">Support</span>
+                    </Button>
+                    <Button variant="ghost" size="sm" className="gap-2 h-9 px-3">
+                      <MessageCircle className="h-5 w-5" />
+                      <span className="text-sm">Comment</span>
+                    </Button>
+                    <Button variant="ghost" size="sm" className="gap-2 h-9 px-3">
+                      <Share2 className="h-5 w-5" />
+                      <span className="text-sm">Share</span>
+                    </Button>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="h-9"
+                    onClick={() => router.push(`/campaigns/${campaign.id}`)}
+                  >
+                    Back this project
+                  </Button>
+                </div>
+              </article>
+            ))}
+
+            {/* Load More */}
+            <div className="p-6 text-center">
+              <Button onClick={loadCampaigns} variant="outline" disabled={loading}>
+                {loading ? 'Loading...' : 'Load more campaigns'}
               </Button>
             </div>
           </div>
-        </section>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="notifications">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
-            <TabsTrigger value="wallet">Wallet</TabsTrigger>
-          </TabsList>
-
-          {/* Notifications Tab */}
-          <TabsContent value="notifications" className="space-y-6">
-            <div className="grid gap-6 lg:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Create Notification</CardTitle>
-                  <CardDescription>
-                    Test the notifications microservice by creating a new notification
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={createNotification} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="notif-title">Title</Label>
-                      <Input
-                        id="notif-title"
-                        value={notificationForm.title}
-                        onChange={(e) =>
-                          setNotificationForm({ ...notificationForm, title: e.target.value })
-                        }
-                        placeholder="Notification title"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="notif-message">Message</Label>
-                      <Textarea
-                        id="notif-message"
-                        value={notificationForm.message}
-                        onChange={(e) =>
-                          setNotificationForm({ ...notificationForm, message: e.target.value })
-                        }
-                        placeholder="Notification message"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="notif-type">Type</Label>
-                      <select
-                        id="notif-type"
-                        value={notificationForm.type}
-                        onChange={(e) =>
-                          setNotificationForm({ ...notificationForm, type: e.target.value })
-                        }
-                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      >
-                        <option value="info">Info</option>
-                        <option value="success">Success</option>
-                        <option value="warning">Warning</option>
-                        <option value="error">Error</option>
-                      </select>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button type="submit" className="flex-1">
-                        Create Notification
-                      </Button>
-                      <Button type="button" onClick={loadNotifications} variant="outline">
-                        Refresh
-                      </Button>
-                    </div>
-                    {notificationStatus && (
-                      <p className="text-sm text-muted-foreground">{notificationStatus}</p>
-                    )}
-                  </form>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>My Notifications</CardTitle>
-                  <CardDescription>
-                    Your recent notifications
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {notifications.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        No notifications yet. Create one to get started!
-                      </p>
-                    ) : (
-                      notifications.map((notif) => (
-                        <div
-                          key={notif.id}
-                          className="rounded-lg border border-border p-3 space-y-2"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <p className="font-medium text-sm">{notif.title}</p>
-                              <p className="text-xs text-muted-foreground">{notif.message}</p>
-                            </div>
-                            <Badge variant={notif.status === 'UNREAD' ? 'warning' : 'secondary'}>
-                              {notif.type}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(notif.createdAt).toLocaleDateString()}
-                            </p>
-                            {notif.status === 'UNREAD' && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => markAsRead(notif.id)}
-                              >
-                                Mark as read
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Campaigns Tab */}
-          <TabsContent value="campaigns" className="space-y-6">
-            <div className="grid gap-6 lg:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Create Campaign</CardTitle>
-                  <CardDescription>
-                    Test the campaigns microservice by creating a new campaign
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={createCampaign} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="camp-name">Campaign Name</Label>
-                      <Input
-                        id="camp-name"
-                        value={campaignForm.name}
-                        onChange={(e) =>
-                          setCampaignForm({ ...campaignForm, name: e.target.value })
-                        }
-                        placeholder="My Awesome Campaign"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="camp-desc">Description</Label>
-                      <Textarea
-                        id="camp-desc"
-                        value={campaignForm.description}
-                        onChange={(e) =>
-                          setCampaignForm({ ...campaignForm, description: e.target.value })
-                        }
-                        placeholder="Campaign description"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="camp-goal">Goal Amount ($)</Label>
-                      <Input
-                        id="camp-goal"
-                        type="number"
-                        min="1"
-                        step="0.01"
-                        value={campaignForm.goal}
-                        onChange={(e) =>
-                          setCampaignForm({ ...campaignForm, goal: e.target.value })
-                        }
-                        placeholder="10000"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="camp-category">Category</Label>
-                      <Input
-                        id="camp-category"
-                        value={campaignForm.category}
-                        onChange={(e) =>
-                          setCampaignForm({ ...campaignForm, category: e.target.value })
-                        }
-                        placeholder="Technology, Arts, etc."
-                        required
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button type="submit" className="flex-1">
-                        Create Campaign
-                      </Button>
-                      <Button type="button" onClick={loadCampaigns} variant="outline">
-                        Refresh
-                      </Button>
-                    </div>
-                    {campaignStatus && (
-                      <p className="text-sm text-muted-foreground">{campaignStatus}</p>
-                    )}
-                  </form>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>All Campaigns</CardTitle>
-                  <CardDescription>
-                    Campaigns from the microservice
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {campaigns.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        No campaigns yet. Create one to get started!
-                      </p>
-                    ) : (
-                      campaigns.map((campaign) => (
-                        <div
-                          key={campaign.id}
-                          className="rounded-lg border border-border p-3 space-y-2"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <p className="font-medium text-sm">{campaign.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {campaign.description}
-                              </p>
-                            </div>
-                            <Badge>{campaign.status}</Badge>
-                          </div>
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground">{campaign.category}</span>
-                            <span className="font-medium">
-                              ${campaign.currentAmount} / ${campaign.goal}
-                            </span>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Wallet Tab */}
-          <TabsContent value="wallet" className="space-y-6">
-            <div className="grid gap-6 lg:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Wallet Operations</CardTitle>
-                  <CardDescription>
-                    Test the wallet microservice with deposits and balance checks
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="rounded-lg bg-primary/10 p-4 space-y-2">
-                    <p className="text-sm text-muted-foreground">Current Balance</p>
-                    <p className="text-3xl font-bold">
-                      {walletBalance !== null ? `$${walletBalance.toFixed(2)}` : 'Loading...'}
-                    </p>
-                    <Button onClick={loadWallet} variant="outline" size="sm" className="w-full">
-                      Refresh Balance
-                    </Button>
-                  </div>
-
-                  <form onSubmit={depositMoney} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="deposit-amount">Deposit Amount ($)</Label>
-                      <Input
-                        id="deposit-amount"
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        value={depositAmount}
-                        onChange={(e) => setDepositAmount(e.target.value)}
-                        placeholder="100.00"
-                        required
-                      />
-                    </div>
-                    <Button type="submit" className="w-full">
-                      Deposit Money
-                    </Button>
-                    {walletStatus && (
-                      <p className="text-sm text-muted-foreground">{walletStatus}</p>
-                    )}
-                  </form>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Transaction History</CardTitle>
-                  <CardDescription>
-                    Your recent wallet transactions
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {transactions.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        No transactions yet. Make a deposit to get started!
-                      </p>
-                    ) : (
-                      transactions.map((tx) => (
-                        <div
-                          key={tx.id}
-                          className="rounded-lg border border-border p-3 space-y-2"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <p className="font-medium text-sm">{tx.type}</p>
-                              {tx.description && (
-                                <p className="text-xs text-muted-foreground">{tx.description}</p>
-                              )}
-                            </div>
-                            <Badge variant={tx.status === 'COMPLETED' ? 'success' : 'secondary'}>
-                              {tx.status}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(tx.createdAt).toLocaleDateString()}
-                            </p>
-                            <p className="font-medium text-sm">
-                              {tx.amount > 0 ? '+' : ''}${tx.amount.toFixed(2)}
-                            </p>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
+        )}
       </div>
     </main>
   );

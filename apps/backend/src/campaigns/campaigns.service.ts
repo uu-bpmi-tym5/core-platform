@@ -200,6 +200,14 @@ export class CampaignsService {
     return this.findCampaignById(campaignId);
   }
 
+  async findPendingCampaigns(): Promise<Campaign[]> {
+    return this.campaignRepository.find({
+      where: { status: CampaignStatus.SUBMITTED },
+      relations: ['creator'],
+      order: { createdAt: 'ASC' },
+    });
+  }
+
   private async handleStatusChangeNotification(campaign: Campaign, oldStatus: CampaignStatus): Promise<void> {
     const { creatorId, name, id, status } = campaign;
 

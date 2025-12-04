@@ -5,11 +5,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from './ui/button';
 import { User, LayoutDashboard, Menu, X, CreditCard } from 'lucide-react';
+import { useUserRole } from '@/lib/useUserRole';
 
 export function Navigation() {
   const pathname = usePathname();
   const [authToken, setAuthToken] = React.useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const { isAdmin } = useUserRole();
 
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -20,19 +22,29 @@ export function Navigation() {
 
   const isActive = (path: string) => pathname === path;
 
-  const navLinks = authToken
-    ? [
-        { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        { href: '/wallet', label: 'Wallet', icon: CreditCard },
-        { href: '/profile', label: 'Profile', icon: User },
-      ]
-    : [];
+  // Build nav links based on user role
+  const navLinks = React.useMemo(() => {
+    if (!authToken) return [];
+
+    const links = [
+      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    ];
+
+    // Only show wallet for non-admin users
+    if (!isAdmin) {
+      links.push({ href: '/wallet', label: 'Wallet', icon: CreditCard });
+    }
+
+    links.push({ href: '/profile', label: 'Profile', icon: User });
+
+    return links;
+  }, [authToken, isAdmin]);
 
   return (
     <nav className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
-        <Link href={authToken ? '/dashboard' : '/'} className="flex items-center gap-2">
+        <Link href={"/"} className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <span className="text-lg font-bold">C</span>
           </div>

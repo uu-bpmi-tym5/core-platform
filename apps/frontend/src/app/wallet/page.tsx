@@ -17,6 +17,7 @@ import {
   TransactionStatus,
   TransactionType,
 } from '@/lib/graphql';
+import { useUserRole } from '@/lib/useUserRole';
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat('en-US', {
@@ -52,6 +53,7 @@ const typeLabel: Record<TransactionType, string> = {
 
 export default function WalletPage() {
   const router = useRouter();
+  const { isAdmin, isLoading: roleLoading } = useUserRole();
   const [authToken, setAuthToken] = React.useState<string | null>(null);
   const [balance, setBalance] = React.useState<number>(0);
   const [transactions, setTransactions] = React.useState<WalletTX[]>([]);
@@ -66,6 +68,12 @@ export default function WalletPage() {
   const [withdrawDescription, setWithdrawDescription] = React.useState('');
 
   React.useEffect(() => {
+    // Redirect admins away from wallet page
+    if (!roleLoading && isAdmin) {
+      router.push('/dashboard');
+      return;
+    }
+
     const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
     if (!token) {
       router.push('/login');
@@ -73,7 +81,7 @@ export default function WalletPage() {
     }
     setAuthToken(token);
     loadData(token);
-  }, [router]);
+  }, [router, isAdmin, roleLoading]);
 
   async function loadData(token: string) {
     try {
