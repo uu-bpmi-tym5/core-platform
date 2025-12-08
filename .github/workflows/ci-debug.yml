@@ -1,0 +1,75 @@
+name: CI Debug - npm ci Diagnostics
+
+# Manuální trigger pro debugging
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Show Node and npm versions
+        run: |
+          echo "Node version:"
+          node --version
+          echo "npm version:"
+          npm --version
+          echo "npm config:"
+          npm config list
+
+      - name: Check disk space
+        run: |
+          echo "Disk space:"
+          df -h
+          echo "RAM:"
+          free -h
+
+      - name: List package-lock.json details
+        run: |
+          echo "Lock file size:"
+          ls -lh package-lock.json
+          echo "Lock file version:"
+          head -5 package-lock.json | grep lockfileVersion
+          echo "Number of packages:"
+          grep -c '"version"' package-lock.json || echo "Could not count"
+
+      - name: Clean npm cache
+        run: npm cache clean --force
+
+      - name: npm ci with verbose output
+        run: |
+          npm ci \
+            --prefer-offline \
+            --no-audit \
+            --no-fund \
+            --legacy-peer-deps \
+            --verbose
+        timeout-minutes: 25
+        env:
+          npm_config_maxsockets: 5
+
+      - name: Verify installation
+        run: |
+          echo "Checking node_modules:"
+          ls -la node_modules | head -20
+          echo "Total packages installed:"
+          find node_modules -maxdepth 1 -type d | wc -l
+
+      - name: Test nx installation
+        run: npx nx --version
+
+      - name: Show workspace structure
+        run: npx nx show projects --json | head -50
+

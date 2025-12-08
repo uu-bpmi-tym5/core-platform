@@ -1,0 +1,54 @@
+{
+  "name": "frontend",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/frontend/src",
+  "projectType": "application",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/next:build",
+      "outputs": ["{workspaceRoot}/apps/frontend/.next"],
+      "options": {
+        "outputPath": "apps/frontend/.next"
+      },
+      "configurations": {
+        "ci": {
+          "outputPath": "apps/frontend/.next"
+        }
+      }
+    },
+    "serve": {
+      "executor": "@nx/next:serve",
+      "defaultConfiguration": "development",
+      "options": {
+        "buildTarget": "frontend:build",
+        "dev": true
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "frontend:build:development",
+          "dev": true
+        },
+        "production": {
+          "buildTarget": "frontend:build:production",
+          "dev": false
+        }
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["apps/frontend/**/*.{ts,tsx,js,jsx}"]
+      }
+    },
+    "export": {
+      "executor": "@nx/next:export",
+      "outputs": ["{workspaceRoot}/apps/frontend/out"],
+      "options": {
+        "buildTarget": "frontend:build:production"
+      }
+    }
+  }
+}
+

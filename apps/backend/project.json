@@ -19,6 +19,11 @@
           "args": [
             "--node-env=development"
           ]
+        },
+        "ci": {
+          "args": [
+            "--node-env=production"
+          ]
         }
       }
     },
