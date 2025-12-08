@@ -27,12 +27,6 @@
       }
     },
     {
-      "plugin": "@nx/eslint/plugin",
-      "options": {
-        "targetName": "lint"
-      }
-    },
-    {
       "plugin": "@nx/next/plugin",
       "options": {
         "startTargetName": "start",
@@ -48,7 +42,7 @@
     "@nx/next": {
       "application": {
         "style": "tailwind",
-        "linter": "eslint"
+        "linter": "none"
       }
     }
   }

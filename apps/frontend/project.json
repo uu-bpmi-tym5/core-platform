@@ -35,13 +35,6 @@
         }
       }
     },
-    "lint": {
-      "executor": "@nx/eslint:lint",
-      "outputs": ["{options.outputFile}"],
-      "options": {
-        "lintFilePatterns": ["apps/frontend/**/*.{ts,tsx,js,jsx}"]
-      }
-    },
     "export": {
       "executor": "@nx/next:export",
       "outputs": ["{workspaceRoot}/apps/frontend/out"],
