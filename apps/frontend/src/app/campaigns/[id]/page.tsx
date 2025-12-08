@@ -6,9 +6,9 @@ import { getCampaignById, Campaign, formatCurrency } from '@/lib/graphql';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CommentSection } from '@/components/comment-section';
-import { Loader2, ArrowLeft, Calendar, Target, Users } from 'lucide-react';
+import { Loader2, ArrowLeft, Target, Users } from 'lucide-react';
 import { format } from 'date-fns';
 
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from '@/components/ui/dialog';

@@ -15,7 +15,6 @@ export function CommentSection({ campaignId }: CommentSectionProps) {
   const [newComment, setNewComment] = React.useState('');
   const [loading, setLoading] = React.useState(true);
   const [submitting, setSubmitting] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
 
   const fetchComments = React.useCallback(async () => {
@@ -24,7 +23,6 @@ export function CommentSection({ campaignId }: CommentSectionProps) {
       setComments(data.comments);
     } catch (err) {
       console.error('Failed to load comments:', err);
-      setError('Failed to load comments');
     } finally {
       setLoading(false);
     }
@@ -50,7 +48,6 @@ export function CommentSection({ campaignId }: CommentSectionProps) {
       fetchComments(); // Reload comments to show the new one
     } catch (err) {
       console.error('Failed to post comment:', err);
-      setError('Failed to post comment');
     } finally {
       setSubmitting(false);
     }
