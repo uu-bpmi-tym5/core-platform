@@ -1,0 +1,27 @@
+# Public profile display
+
+query PublicProfile($username: String!) {
+  publicProfile(username: $username) {
+    campaignsCount
+    totalRaised
+    user {
+      id
+      username
+      displayName
+      bio
+      avatarUrl
+      websiteUrl
+    }
+  }
+}
+
+query CampaignsByCreator($username: String!) {
+  campaignsByCreator(username: $username) {
+    id
+    title
+    description
+    goalAmount
+    raisedAmount
+    isActive
+  }
+}

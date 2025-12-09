@@ -1,0 +1,97 @@
+# Content posting with mandatory moderator approval
+
+query MyPosts {
+  myPosts {
+    id
+    title
+    content
+    status
+    rejectionReason
+    createdAt
+    updatedAt
+    publishedAt
+    author { id username displayName }
+    campaign { id title }
+  }
+}
+
+query PendingPosts {
+  pendingPosts {
+    id
+    title
+    content
+    status
+    createdAt
+    author { id username displayName }
+    campaign { id title }
+  }
+}
+
+query PublishedPostsByCampaign($campaignId: ID!) {
+  publishedPostsByCampaign(campaignId: $campaignId) {
+    id
+    title
+    content
+    status
+    publishedAt
+    author { id username displayName }
+    campaign { id title }
+  }
+}
+
+query PublishedPostsByCreator($username: String!) {
+  publishedPostsByCreator(username: $username) {
+    id
+    title
+    content
+    publishedAt
+    campaign { id title }
+  }
+}
+
+mutation CreatePost($input: CreatePostInput!) {
+  createPost(input: $input) {
+    id
+    title
+    content
+    status
+    createdAt
+  }
+}
+
+mutation UpdatePost($input: UpdatePostInput!) {
+  updatePost(input: $input) {
+    id
+    title
+    content
+    status
+    rejectionReason
+    updatedAt
+  }
+}
+
+mutation SubmitPost($postId: ID!) {
+  submitPost(postId: $postId) {
+    id
+    status
+    rejectionReason
+    updatedAt
+  }
+}
+
+mutation ApprovePost($postId: ID!) {
+  approvePost(postId: $postId) {
+    id
+    status
+    reviewedAt
+  }
+}
+
+mutation RejectPost($input: RejectPostInput!) {
+  rejectPost(input: $input) {
+    id
+    status
+    rejectionReason
+    reviewedAt
+  }
+}
