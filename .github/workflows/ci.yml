@@ -39,7 +39,7 @@ jobs:
       # Use npm ci with optimized flags for monorepo
       - name: Install dependencies
         run: |
-          npm ci \
+          npm i \
             --prefer-offline \
             --no-audit \
             --no-fund \
