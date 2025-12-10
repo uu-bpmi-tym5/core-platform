@@ -89,6 +89,11 @@ jobs:
           # create merged package.json in image context (backend deps take precedence) using a single node -e script
           node -e "const fs=require('fs');const rootPath='package.json';const backendPath='apps/backend/package.json';const root=fs.existsSync(rootPath)?JSON.parse(fs.readFileSync(rootPath,'utf8')):null;const backend=fs.existsSync(backendPath)?JSON.parse(fs.readFileSync(backendPath,'utf8')):null;if(!root && !backend){console.error('No package.json found in root or apps/backend');process.exit(1);}const out=backend?JSON.parse(JSON.stringify(backend)):{name:'backend',version:'0.0.0',private:true,dependencies:{}};out.dependencies=out.dependencies||{};if(root&&root.dependencies){for(const k of Object.keys(root.dependencies)){if(!(k in out.dependencies))out.dependencies[k]=root.dependencies[k];}}if(root&&root.peerDependencies){out.peerDependencies=out.peerDependencies||{};for(const k of Object.keys(root.peerDependencies)){if(!(k in out.peerDependencies))out.peerDependencies[k]=root.peerDependencies[k];}}fs.writeFileSync('backend-image-context/package.json',JSON.stringify(out,null,2));console.log('Wrote backend-image-context/package.json');"
 
+          # generate a package-lock.json matching the merged package.json so Docker installs exact prod deps
+          # use --package-lock-only to avoid installing node_modules on the runner
+          (cd backend-image-context && npm install --package-lock-only --legacy-peer-deps --no-audit --no-fund) || echo 'npm install --package-lock-only failed (non-fatal)'
+          echo "Generated backend-image-context/package-lock.json (if npm install succeeded)"
+
           # do NOT copy package-lock.json into the image context (we'll install from merged package.json inside the image)
           echo "Not copying package-lock.json into backend-image-context to avoid mismatch with merged package.json"
 
@@ -124,7 +129,7 @@ jobs:
             echo 'No node_modules in context'
           fi
 
-      - name: Create Dockerfile for backend image (local context)
+      - name: Create Dockerfile for backend image (local)
         run: |
           cat > backend-image-context/Dockerfile <<'EOF'
           #################################################################
@@ -134,8 +139,12 @@ jobs:
           FROM node:20-alpine AS deps
           WORKDIR /app
           COPY package.json package-lock.json* ./
-          # install production dependencies based on merged package.json (avoid lockfile mismatch by using npm install)
-          RUN npm install --omit=dev --legacy-peer-deps --no-audit --no-fund --production
+          # install production dependencies based on merged package.json and lockfile
+          RUN if [ -f package-lock.json ]; then \
+            npm ci --omit=dev --legacy-peer-deps --no-audit --no-fund --production; \
+          else \
+            npm install --omit=dev --legacy-peer-deps --no-audit --no-fund --production; \
+          fi
 
           #################################################################
           # Stage final: runtime image with only production deps + built dist
