@@ -217,6 +217,9 @@ jobs:
             npm install --legacy-peer-deps --no-audit --no-fund; \
           fi
           
+          # Create .env with GraphQL URL
+          RUN echo "NEXT_PUBLIC_GRAPHQL_URL=http://cwws0g0c4sckc8w0ckowkgc0.116.203.84.69.sslip.io/graphql" > .env
+          
           EXPOSE 3000
           CMD ["npm", "run", "dev", "-w", "frontend"]
           EOF
