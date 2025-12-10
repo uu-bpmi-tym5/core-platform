@@ -29,14 +29,14 @@ export const databaseProviders = [
       const entities = Array.from(new Set([...explicitEntities]));
 
       const dataSource = new DataSource({
-        type: 'postgres',
-        host: 'localhost',
-        port: 5432,
-        username: 'root',
-        password: 'root',
-        database: 'platform',
+        type: (process.env.DB_TYPE as any) || 'postgres',
+        host: process.env.DB_HOST || 'localhost',
+        port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 5432,
+        username: process.env.DB_USER || 'root',
+        password: process.env.DB_PASSWORD || 'root',
+        database: process.env.DB_NAME || 'platform',
         entities,
-        synchronize: true,
+        synchronize: typeof process.env.DB_SYNCHRONIZE !== 'undefined' ? process.env.DB_SYNCHRONIZE === 'true' : true,
       });
 
       return dataSource.initialize();
