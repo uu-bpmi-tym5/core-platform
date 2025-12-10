@@ -245,9 +245,6 @@ jobs:
             npm run build; \
           fi
           
-          # Remove dev dependencies
-          RUN npm prune --omit=dev --legacy-peer-deps --no-audit --no-fund
-          
           EXPOSE 3000
           CMD ["npm", "run", "start"]
           EOF
