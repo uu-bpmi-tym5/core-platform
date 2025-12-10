@@ -1,4 +1,4 @@
-import { DataSource } from 'typeorm';
+import { DataSource, DataSourceOptions } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { Session } from '../auth/entities/session.entity';
 import { Campaign, CampaignContribution, CampaignFeedback, CampaignStats, Comment } from '../campaigns/entities';
@@ -28,8 +28,8 @@ export const databaseProviders = [
 
       const entities = Array.from(new Set([...explicitEntities]));
 
-      const dataSource = new DataSource({
-        type: (process.env.DB_TYPE as any) || 'postgres',
+      const options = {
+        type: (process.env.DB_TYPE as DataSourceOptions['type']) || 'postgres',
         host: process.env.DB_HOST || 'localhost',
         port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 5432,
         username: process.env.DB_USER || 'root',
@@ -37,7 +37,9 @@ export const databaseProviders = [
         database: process.env.DB_NAME || 'platform',
         entities,
         synchronize: typeof process.env.DB_SYNCHRONIZE !== 'undefined' ? process.env.DB_SYNCHRONIZE === 'true' : true,
-      });
+      } as DataSourceOptions;
+
+      const dataSource = new DataSource(options);
 
       return dataSource.initialize();
     },
