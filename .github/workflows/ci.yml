@@ -40,18 +40,19 @@ jobs:
         run: npm cache clean --force
 
       - name: Install dependencies
+        timeout-minutes: 30
+        env:
+          NX_DAEMON: 'false'
+          NX_NATIVE_LOGGING: 'false'
+          NX_SKIP_NATIVE_BINDINGS: 'true'
         run: |
-          npm ci \
+          npx npm@10 ci \
             --prefer-offline \
             --no-audit \
             --no-fund \
             --legacy-peer-deps \
-            --verbose \
-            --network-timeout 600000
-        timeout-minutes: 20
-        env:
-          npm_config_maxsockets: 5  # Reduced from 10
-
+            --verbose
+      
       - name: Setup NX early
         run: npx nx reset
 
