@@ -208,9 +208,7 @@ jobs:
           elif [ -d apps/frontend/dist ]; then
             cp -r apps/frontend/dist frontend-image-context/dist
           else
-            echo "Error: frontend build output not found (apps/frontend/.next or apps/frontend/dist)"
-            ls -la apps/frontend || true
-            exit 1
+            echo "Warning: frontend build output not found (apps/frontend/.next or apps/frontend/dist). We'll include source and build inside the image."
           fi
 
           # copy package.json (prefer app package.json, fall back to root)
@@ -230,6 +228,10 @@ jobs:
             mkdir -p frontend-image-context/public
           fi
 
+          # copy source (apps/frontend) into the context so Dockerfile can run `npm run build` if needed
+          echo "Copying app source into image context (excluding node_modules)"
+          rsync -a --exclude 'node_modules' apps/frontend/ frontend-image-context/app/ || cp -r apps/frontend frontend-image-context/app || true
+
           # Create .env with required public variable
           cat > frontend-image-context/.env <<'EOF'
           NEXT_PUBLIC_GRAPHQL_URL=http://cwws0g0c4sckc8w0ckowkgc0.116.203.84.69.sslip.io/graphql
@@ -242,9 +244,34 @@ jobs:
         run: |
           cat > frontend-image-context/Dockerfile <<'EOF'
           #################################################################
-          # Simple Dockerfile for Next.js frontend
-          # Assumes build output is in .next and runtime runs with 'next start'
+          # Multi-stage Dockerfile for Next.js frontend
+          # 1) builder: install dev deps and build
+          # 2) deps: install production deps
+          # 3) runtime: copy production node_modules and .next
           #################################################################
+
+          # Builder stage: install dev deps and build
+          FROM node:20-alpine AS builder
+          WORKDIR /app
+          # copy package.json and lockfile for the app
+          COPY package.json package-lock.json* ./
+          # copy app source into builder
+          COPY app/ ./
+          # copy prebuilt .next from context if present (allows using runner build output)
+          COPY .next .next
+          # install full deps (including dev) to build
+          RUN if [ -d .next ]; then \
+            echo "Using prebuilt .next from context, skipping npm run build"; \
+          else \
+            if [ -f package-lock.json ]; then \
+              npm ci --legacy-peer-deps --no-audit --no-fund; \
+            else \
+              npm install --legacy-peer-deps --no-audit --no-fund; \
+            fi; \
+            npm run build; \
+          fi
+
+          # Deps stage: install production deps only (smaller)
           FROM node:20-alpine AS deps
           WORKDIR /app
           COPY package.json package-lock.json* ./
@@ -254,13 +281,14 @@ jobs:
             npm install --omit=dev --legacy-peer-deps --no-audit --no-fund --production; \
           fi
 
+          # Runtime stage: copy production node_modules and built .next
           FROM node:20-alpine AS runtime
           WORKDIR /app
           COPY --from=deps /app/node_modules ./node_modules
-          COPY .next .next
-          # copy public if exists (static assets)
+          # copy the built .next from builder
+          COPY --from=builder /app/.next ./.next
+          # copy public and env
           COPY public ./public
-          # copy .env to the image
           COPY .env .env
           EXPOSE 3000
           CMD ["npx", "next", "start", "-p", "3000"]
