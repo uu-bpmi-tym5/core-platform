@@ -109,7 +109,7 @@ jobs:
           echo "backend-image-context contents:"
           ls -la backend-image-context
 
-      - name: Diagnostic: verify merged package and try install on runner
+      - name: Diagnostic verify merged package and try install on runner
         run: |
           echo 'Merged package.json:'
           node -e "const p=require('./backend-image-context/package.json'); console.log(JSON.stringify({name:p.name, deps: p.dependencies?Object.keys(p.dependencies):[]}, null, 2));"
