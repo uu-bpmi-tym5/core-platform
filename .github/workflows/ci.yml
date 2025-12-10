@@ -101,6 +101,26 @@ jobs:
           name: backend-build
           path: backend-artifact
 
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Copy package manifests into backend-artifact
+        run: |
+          # prefer backend local package.json, fallback to workspace root
+          if [ -f apps/backend/package.json ]; then
+            cp apps/backend/package.json backend-artifact/package.json
+          elif [ -f package.json ]; then
+            cp package.json backend-artifact/package.json
+          fi
+
+          # copy package-lock.json if present at root or backend folder
+          if [ -f apps/backend/package-lock.json ]; then
+            cp apps/backend/package-lock.json backend-artifact/package-lock.json
+          elif [ -f package-lock.json ]; then
+            cp package-lock.json backend-artifact/package-lock.json
+          fi
       - name: Create Dockerfile for backend (from artifact)
         run: |
           cat > backend-artifact/Dockerfile <<'EOF'
