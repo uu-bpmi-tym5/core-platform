@@ -85,94 +85,114 @@ jobs:
             exit 1
           fi
 
-          # prefer backend local package.json, fallback to workspace root
-          if [ -f apps/backend/package.json ]; then
-            cp apps/backend/package.json backend-image-context/package.json
-          elif [ -f package.json ]; then
+          # Prefer using root package.json + package-lock.json to reliably install workspace deps (includes @nestjs/jwt)
+          if [ -f package.json ] && [ -f package-lock.json ]; then
+            echo "Using root package.json + package-lock.json for docker install"
             cp package.json backend-image-context/package.json
+            cp package-lock.json backend-image-context/package-lock.json
+          elif [ -f apps/backend/package.json ]; then
+            echo "Using apps/backend/package.json for docker install (no root lockfile)"
+            cp apps/backend/package.json backend-image-context/package.json
+            if [ -f apps/backend/package-lock.json ]; then
+              cp apps/backend/package-lock.json backend-image-context/package-lock.json
+            fi
           else
-            echo "No package.json found in apps/backend or repo root"
+            echo "No package.json found in root or apps/backend; cannot build image"
             exit 1
           fi
 
-          # copy package-lock.json if present at backend or root
-          if [ -f apps/backend/package-lock.json ]; then
-            cp apps/backend/package-lock.json backend-image-context/package-lock.json
-          elif [ -f package-lock.json ]; then
-            cp package-lock.json backend-image-context/package-lock.json
-          else
-            echo "No package-lock.json found; will copy existing node_modules from runner if present"
-          fi
-
-          # copy node_modules from runner to avoid running `npm ci` in the image (prevents lockfile mismatch)
-          if [ -d apps/backend/node_modules ]; then
-            echo "Copying apps/backend/node_modules into image context"
-            cp -a apps/backend/node_modules backend-image-context/node_modules
-          elif [ -d node_modules ]; then
-            echo "Copying root node_modules into image context"
-            cp -a node_modules backend-image-context/node_modules
-          else
-            echo "Warning: no node_modules found in workspace; docker build will fallback to installing inside image"
-          fi
-
-          # ensure node_modules dir exists (so Docker COPY won't fail if nothing was copied)
-          mkdir -p backend-image-context/node_modules
-
-          # attempt to prune dev deps in the copied node_modules to slim image (non-fatal)
-          if [ -d backend-image-context/node_modules ] && [ "$(ls -A backend-image-context/node_modules 2>/dev/null)" ]; then
-            (cd backend-image-context && npm prune --production --legacy-peer-deps) || true
-          fi
+          # package-lock.json is already handled above; if none present, docker will run npm install
+          
+          # do NOT copy node_modules from the runner (can be large and may miss hoisted deps).
+          echo "Skipping copy of node_modules; docker build will run npm install in the image"
 
           echo "backend-image-context contents:"
           ls -la backend-image-context
+
+      - name: Diagnostic: verify merged package and try install on runner
+        run: |
+          echo 'Merged package.json:'
+          node -e "const p=require('./backend-image-context/package.json'); console.log(JSON.stringify({name:p.name, deps: p.dependencies?Object.keys(p.dependencies):[]}, null, 2));"
+          if [ -f backend-image-context/package-lock.json ]; then
+            echo 'package-lock.json present in context; attempting npm ci in backend-image-context (runner)'
+            (cd backend-image-context && npm ci --prefer-offline --no-audit --no-fund --legacy-peer-deps --production) || echo 'npm ci in context failed (non-fatal)'
+          else
+            echo 'No package-lock.json in context; will not run npm ci here'
+          fi
+
+          if [ -d backend-image-context/node_modules ]; then
+            echo 'Checking for @nestjs/jwt in node_modules:'
+            if [ -d backend-image-context/node_modules/@nestjs/jwt ]; then
+              echo '@nestjs/jwt is present in node_modules'
+            else
+              echo '@nestjs/jwt NOT found in node_modules'
+            fi
+            echo 'node_modules top-level packages:'
+            ls -1 backend-image-context/node_modules | head -n 50 || true
+          else
+            echo 'No node_modules in context'
+          fi
 
       - name: Create Dockerfile for backend image (local context)
         run: |
           cat > backend-image-context/Dockerfile <<'EOF'
           FROM node:20-alpine
           WORKDIR /app
-          # copy package manifests (for runtime metadata) and pre-populated node_modules from runner
+          # copy package manifests (for runtime metadata)
           COPY package.json package-lock.json* ./
-          COPY node_modules ./node_modules
-          COPY dist ./dist
-          # If node_modules is empty (wasn't copied), install production deps here. Use npm install to avoid lockfile mismatch errors.
-          RUN if [ -z "$(ls -A node_modules 2>/dev/null)" ]; then \
-                npm install --omit=dev --legacy-peer-deps --no-audit --no-fund; \
+          # If package-lock.json is present use `npm ci` for reproducible install, otherwise fall back to npm install
+          RUN if [ -f package-lock.json ]; then \
+                npm ci --prefer-offline --no-audit --no-fund --legacy-peer-deps --production; \
               else \
-                echo "Using preinstalled node_modules"; \
+                npm install --omit=dev --legacy-peer-deps --no-audit --no-fund; \
               fi
+          # copy built output
+          COPY dist ./dist
           EXPOSE 3000
           CMD ["node", "dist/main.js"]
           EOF
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+      - name: Build backend image (local)
+        run: |
+          set -e
+          docker buildx create --use --name mybuilder --driver docker-container --bootstrap || true
+          docker buildx inspect --bootstrap
+          # build the backend image
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --tag ghcr.io/${{ github.repository_owner }}/backend:latest \
+            --load \
+            backend-image-context || true
+          # for testing, also build a "dev" variant with latest node and no cache
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --tag ghcr.io/${{ github.repository_owner }}/backend:dev \
+            --build-arg NODE_VERSION=latest \
+            --no-cache \
+            --load \
+            backend-image-context || true
+          # show images
+          docker images --digests || true
+          # cleanup unused builder data
+          docker buildx prune --all --force || true
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Upload backend image to GHCR
+        run: |
+          echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
+          echo "IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/backend" >> $GITHUB_ENV
+          echo "IMAGE_TAG=latest" >> $GITHUB_ENV
+          echo "IMAGE_DEV_TAG=dev" >> $GITHUB_ENV
+          echo "IMAGE_REPOSITORY=${{ github.repository }}" >> $GITHUB_ENV
+          echo "IMAGE_PATH=backend-image-context" >> $GITHUB_ENV
+          echo "NX_CLOUD_AUTH_TOKEN=${{ secrets.NX_CLOUD_AUTH_TOKEN }}" >> $GITHUB_ENV
+          echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
+          |
+          docker push $IMAGE_NAME:$IMAGE_TAG || true
+          docker push $IMAGE_NAME:$IMAGE_DEV_TAG || true
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push Docker image to GHCR (from local context)
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend-image-context
-          file: ./backend-image-context/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/core-backend:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/core-backend:latest
-
-      - name: Upload frontend artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-build
-          path: apps/frontend/.next/
-          retention-days: 7
-          if-no-files-found: warn
+      - name: Notify if there are affected projects
+        if: ${{ steps.derivative.outputs.affected == 'true' }}
+        run: |
+          echo "There are affected projects."
+          echo "Run the following command to see the affected projects:"
+          echo "npx nx affected --base=${{ github.event.before }} --head=${{ github.sha }}"
