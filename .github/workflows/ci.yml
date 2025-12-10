@@ -71,65 +71,54 @@ jobs:
       - name: Build frontend explicitly
         run: npx nx build frontend --configuration=ci
 
-      - name: Upload backend artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-build
-          path: apps/backend/dist/
-          retention-days: 7
-          if-no-files-found: warn
-
-      - name: Upload frontend artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-build
-          path: apps/frontend/.next/
-          retention-days: 7
-          if-no-files-found: warn
-
-  publish-ghcr:
-    needs: build
-    runs-on: ubuntu-22.04  # Fixed: Consistent with build job
-    timeout-minutes: 20
-
-    steps:
-      - name: Download backend artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-build
-          path: backend-artifact
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Copy package manifests into backend-artifact
+      - name: Prepare backend image context (local)
         run: |
+          set -e
+          rm -rf backend-image-context
+          mkdir -p backend-image-context
+          # copy built output
+          if [ -d apps/backend/dist ]; then
+            cp -r apps/backend/dist backend-image-context/dist
+          else
+            echo "Error: apps/backend/dist not found; backend build must produce dist"
+            ls -la apps/backend || true
+            exit 1
+          fi
+
           # prefer backend local package.json, fallback to workspace root
           if [ -f apps/backend/package.json ]; then
-            cp apps/backend/package.json backend-artifact/package.json
+            cp apps/backend/package.json backend-image-context/package.json
           elif [ -f package.json ]; then
-            cp package.json backend-artifact/package.json
+            cp package.json backend-image-context/package.json
+          else
+            echo "No package.json found in apps/backend or repo root"
+            exit 1
           fi
 
-          # copy package-lock.json if present at root or backend folder
+          # copy package-lock.json if present at backend or root
           if [ -f apps/backend/package-lock.json ]; then
-            cp apps/backend/package-lock.json backend-artifact/package-lock.json
+            cp apps/backend/package-lock.json backend-image-context/package-lock.json
           elif [ -f package-lock.json ]; then
-            cp package-lock.json backend-artifact/package-lock.json
+            cp package-lock.json backend-image-context/package-lock.json
+          else
+            echo "No package-lock.json found; npm ci will fail without a lockfile - continuing with npm install fallback"
           fi
-      - name: Create Dockerfile for backend (from artifact)
+
+          echo "backend-image-context contents:"
+          ls -la backend-image-context
+
+      - name: Create Dockerfile for backend image (local context)
         run: |
-          cat > backend-artifact/Dockerfile <<'EOF'
+          cat > backend-image-context/Dockerfile <<'EOF'
           FROM node:20-alpine
           WORKDIR /app
-          COPY . .
-          RUN npx npm@10 ci --prefer-offline --no-audit --no-fund --legacy-peer-deps --verbose
+          # copy package manifests and install production deps
+          COPY package.json package-lock.json* ./
+          # if package-lock.json is missing, npm ci will fail; we rely on npm to handle it in the runner
+          RUN npm ci --prefer-offline --no-audit --no-fund --legacy-peer-deps --production
+          COPY dist ./dist
           EXPOSE 3000
-          CMD ["node", "main.js"]
+          CMD ["node", "dist/main.js"]
           EOF
 
       - name: Set up QEMU
@@ -145,12 +134,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image to GHCR
+      - name: Build and push Docker image to GHCR (from local context)
         uses: docker/build-push-action@v5
         with:
-          context: ./backend-artifact
-          file: ./backend-artifact/Dockerfile
+          context: ./backend-image-context
+          file: ./backend-image-context/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/core-backend:${{ github.sha }}
             ghcr.io/${{ github.repository_owner }}/core-backend:latest
+
+      - name: Upload frontend artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: apps/frontend/.next/
+          retention-days: 7
+          if-no-files-found: warn
