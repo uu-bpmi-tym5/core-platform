@@ -205,133 +205,99 @@ jobs:
           rm -rf frontend-image-context
           mkdir -p frontend-image-context
 
-          # copy built output - adjust path depending on Next.js build output used by your NX config
+          # Copy root package.json + lock file for dependency resolution
+          if [ -f package.json ]; then
+            cp package.json frontend-image-context/package.json
+          fi
+          if [ -f package-lock.json ]; then
+            cp package-lock.json frontend-image-context/package-lock.json
+          fi
+
+          # Copy prebuilt .next from the NX build output if present
           if [ -d apps/frontend/.next ]; then
+            echo "Copying prebuilt .next"
             cp -r apps/frontend/.next frontend-image-context/.next
-          elif [ -d apps/frontend/dist ]; then
-            cp -r apps/frontend/dist frontend-image-context/dist
           else
-            echo "Warning: frontend build output not found (apps/frontend/.next or apps/frontend/dist). We'll include source and build inside the image."
+            echo "No prebuilt .next found - will build inside Docker"
           fi
 
-          # copy package.json (prefer app package.json, fall back to root)
-          if [ -f apps/frontend/package.json ]; then
-            cp apps/frontend/package.json frontend-image-context/app.package.json
-          elif [ -f package.json ]; then
-            cp package.json frontend-image-context/app.package.json
-          else
-            echo "No package.json found for frontend image context"
-            exit 1
-          fi
+          # Copy frontend app source (excluding node_modules and dist)
+          echo "Copying frontend app source"
+          mkdir -p frontend-image-context/app
+          rsync -a \
+            --exclude 'node_modules' \
+            --exclude 'dist' \
+            --exclude '.next' \
+            apps/frontend/ frontend-image-context/app/
 
-          # copy root tsconfig.base.json so Next/TypeScript inside the builder can resolve extends
-          if [ -f tsconfig.base.json ]; then
-            cp tsconfig.base.json frontend-image-context/tsconfig.base.json
-            echo "Copied tsconfig.base.json into frontend-image-context"
-          else
-            echo "No root tsconfig.base.json found; TypeScript build inside Docker may fail if project expects it"
-          fi
-
-          # create a merged package.json that includes dependencies and devDependencies from root and app
-          node -e "const fs=require('fs');const rootPath='package.json';const appPath='apps/frontend/package.json';const root=fs.existsSync(rootPath)?JSON.parse(fs.readFileSync(rootPath,'utf8')):null;const app=fs.existsSync(appPath)?JSON.parse(fs.readFileSync(appPath,'utf8')):null;if(!root && !app){console.error('No package.json found in root or apps/frontend');process.exit(1);}const out=app?JSON.parse(JSON.stringify(app)):{name:'frontend',version:'0.0.0',private:true,dependencies:{}};out.dependencies=out.dependencies||{};out.devDependencies=out.devDependencies||{};if(root){['dependencies','devDependencies','peerDependencies'].forEach(k=>{if(root[k]){out[k]=out[k]||{};Object.keys(root[k]).forEach(p=>{if(!(p in out[k])){out[k][p]=root[k][p]}})}});}if(root && root.devDependencies && root.devDependencies['@nx/next']){out.devDependencies['@nx/next']=root.devDependencies['@nx/next'];}fs.writeFileSync('frontend-image-context/package.json',JSON.stringify(out,null,2));console.log('Wrote frontend-image-context/package.json');"
-
-          # generate a package-lock.json matching the merged package.json so Docker can install exact deps
-          (cd frontend-image-context && npm install --package-lock-only --legacy-peer-deps --no-audit --no-fund) || echo 'npm install --package-lock-only failed (non-fatal)'
-
-          # copy public static assets if present, otherwise create an empty public directory
+          # Copy public assets if present
           if [ -d apps/frontend/public ]; then
             cp -r apps/frontend/public frontend-image-context/public
           else
             mkdir -p frontend-image-context/public
           fi
 
-          # copy source (apps/frontend) into the context so Dockerfile can run `npm run build` if needed
-          echo "Copying app source into image context (excluding node_modules)"
-          rsync -a --exclude 'node_modules' apps/frontend/ frontend-image-context/app/ || cp -r apps/frontend frontend-image-context/app || true
-
-          # Create .env with required public variable
-          cat > frontend-image-context/.env <<'EOF'
-          NEXT_PUBLIC_GRAPHQL_URL=http://cwws0g0c4sckc8w0ckowkgc0.116.203.84.69.sslip.io/graphql
-          EOF
-
           echo "frontend-image-context contents:"
           ls -la frontend-image-context
+          echo "package.json check:"
+          test -f frontend-image-context/package.json && echo "✓ package.json present" || echo "✗ package.json missing"
 
       - name: Create Dockerfile for frontend image (local)
         run: |
           cat > frontend-image-context/Dockerfile <<'EOF'
           #################################################################
           # Multi-stage Dockerfile for Next.js frontend
-          # 1) builder: install dev deps and build
-          # 2) deps: install production deps
-          # 3) runtime: copy production node_modules and .next
+          # Stage 1: builder - install all deps and build
+          # Stage 2: runtime - install prod deps only and run app
           #################################################################
 
-          # Builder stage: install dev deps and build
           FROM node:20-alpine AS builder
           WORKDIR /app
-          # copy package.json and lockfile for the app
+          
+          # copy package files
           COPY package.json package-lock.json* ./
-          # ensure tsconfig.base.json from repo is available to TypeScript during build
-          COPY tsconfig.base.json /tsconfig.base.json
-          # also copy tsconfig.base.json into app dir so tsconfig.json can extend it relatively
-          COPY tsconfig.base.json ./tsconfig.base.json
-          # copy app source into builder
-          COPY app/ ./
-          # copy prebuilt .next from context if present (allows using runner build output)
-          COPY .next .next
-          # install full deps (including dev) to build
-          RUN if [ -f .next/BUILD_ID ]; then \
-            echo "Using prebuilt .next from context (production build), skipping npm run build"; \
-          else \
-            if [ -f package-lock.json ]; then \
-              npm ci --legacy-peer-deps --no-audit --no-fund; \
-            else \
-              npm install --legacy-peer_deps --no-audit --no-fund; \
-            fi; \
-            # Ensure @nx/next is installed so next.config.js can require it during build (install unconditionally to avoid edge cases)
-            echo "Installing @nx/next to ensure next.config.js can resolve it"; \
-            npm install --legacy-peer_deps --no-audit --no-fund @nx/next@^22.1.3 || true; \
-            # make tsconfig.json extend the local tsconfig.base.json so TypeScript can find it inside the container
-            if [ -f tsconfig.json ]; then sed -i 's#\.\./\.\./tsconfig.base.json#./tsconfig.base.json#g' tsconfig.json || true; fi; \
-            npm run build; \
-          fi
-
-          #################################################################
-          # Stage deps: install production dependencies
-          #################################################################
-          FROM node:20-alpine AS deps
-          WORKDIR /app
-          # copy package.json and lockfile from builder
-          COPY package.json package-lock.json* ./
-          # install production dependencies based on merged package.json and lockfile
+          
+          # install all dependencies (including dev)
           RUN if [ -f package-lock.json ]; then \
-            npm ci --omit=dev --legacy-peer-deps --no-audit --no-fund --production; \
+            npm ci --legacy-peer-deps --no-audit --no-fund; \
           else \
-            npm install --omit=dev --legacy-peer-deps --no-audit --no-fund --production; \
+            npm install --legacy-peer-deps --no-audit --no-fund; \
           fi
 
-          #################################################################
-          # Stage final: runtime image with only production deps + built .next
+          # copy source code and built .next if present
+          COPY app/ ./
+          COPY .next .next || true
+          COPY public ./public || true
+          
+          # if .next doesn't exist, build it
+          RUN if [ ! -d .next ]; then \
+            echo "Building Next.js app..."; \
+            npm run build; \
+          else \
+            echo "Using prebuilt .next from context"; \
+          fi
+
           #################################################################
           FROM node:20-alpine AS runtime
           WORKDIR /app
-          # copy production node_modules from deps stage
-          COPY --from=deps /app/node_modules ./node_modules
-          # copy package.json from builder to ensure scripts are available at runtime
-          COPY --from=builder /app/package.json ./ || true
-          # also copy package-lock if present in builder (optional)
-          COPY --from=builder /app/package-lock.json ./ || true
-          # Fallback: also copy package.json from the build context in case builder stage didn't include it
-          COPY package.json package-lock.json* ./ || true
-          # copy .next built on the runner into image
-          COPY .next .next
-          # copy public static assets (if any)
-          COPY public ./public
-          # Debug: print package.json at build time so CI logs show whether it was copied
-          RUN if [ -f /app/package.json ]; then echo '--- /app/package.json contents at build time ---'; cat /app/package.json; else echo '--- /app/package.json MISSING at build time ---'; fi
+          
+          # copy package files for npm start to work
+          COPY package.json package-lock.json* ./
+          
+          # install production dependencies only
+          RUN if [ -f package-lock.json ]; then \
+            npm ci --omit=dev --legacy-peer-deps --no-audit --no-fund; \
+          else \
+            npm install --omit=dev --legacy-peer-deps --no-audit --no-fund; \
+          fi
+          
+          # copy built .next from builder
+          COPY --from=builder /app/.next ./.next
+          
+          # copy public assets
+          COPY --from=builder /app/public ./public || true
+          
           EXPOSE 3000
-          # Use the app's start script which runs `next start` (apps/frontend/package.json)
           CMD ["npm", "run", "start"]
           EOF
 
@@ -367,6 +333,6 @@ jobs:
           docker pull "$IMAGE"
           echo "Running runtime checks for frontend image"
           # show package.json presence and node_modules
-          docker run --rm "$IMAGE" sh -lc "echo '--- ls /app (top entries)'; ls -la /app || true; echo '--- cat /app/package.json (if present)'; cat /app/package.json || echo '/app/package.json not present'; echo '--- ls /app/node_modules (top entries)'; ls -la /app/node_modules | head -n 200 || true; echo '--- npm ls --prod --depth=0'; npm ls --prod --depth=0 || true"
+          docker run --rm "$IMAGE" sh -c "echo '--- ls /app (top entries)'; ls -la /app || true; echo '--- cat /app/package.json (if present)'; cat /app/package.json 2>/dev/null && echo 'SUCCESS: package.json is present' || echo 'ERROR: /app/package.json not found'; echo '--- Check for .next'; ls -la /app/.next 2>/dev/null && echo 'SUCCESS: .next directory present' || echo 'WARNING: .next not found'; echo '--- Check npm ls'; npm ls --prod --depth=0 2>/dev/null || true"
         env:
           DOCKER_BUILDKIT: 1
