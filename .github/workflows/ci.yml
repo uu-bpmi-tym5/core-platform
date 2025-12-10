@@ -221,6 +221,10 @@ jobs:
             exit 1
           fi
 
+          # generate a package-lock.json matching the app package.json so Docker can install exact prod deps
+          # use --package-lock-only to avoid installing node_modules on the runner
+          (cd frontend-image-context && npm install --package-lock-only --legacy-peer-deps --no-audit --no-fund) || echo 'npm install --package-lock-only failed (non-fatal)'
+
           # copy public static assets if present, otherwise create an empty public directory
           if [ -d apps/frontend/public ]; then
             cp -r apps/frontend/public frontend-image-context/public
@@ -260,8 +264,8 @@ jobs:
           # copy prebuilt .next from context if present (allows using runner build output)
           COPY .next .next
           # install full deps (including dev) to build
-          RUN if [ -d .next ]; then \
-            echo "Using prebuilt .next from context, skipping npm run build"; \
+          RUN if [ -f .next/BUILD_ID ]; then \
+            echo "Using prebuilt .next from context (production build), skipping npm run build"; \
           else \
             if [ -f package-lock.json ]; then \
               npm ci --legacy-peer-deps --no-audit --no-fund; \
@@ -311,7 +315,7 @@ jobs:
             --tag ghcr.io/${{ github.repository_owner }}/frontend:latest \
             --tag ghcr.io/${{ github.repository_owner }}/frontend:dev \
             --push \
-            frontend-image-context || true
+            frontend-image-context
           docker buildx prune --all --force || true
 
       - name: Notify if there are affected projects
