@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 30
 
     strategy:
@@ -36,23 +36,27 @@ jobs:
           cache: 'npm'
           cache-dependency-path: package-lock.json
 
-      # Use npm ci with optimized flags for monorepo
+      - name: Clear npm cache
+        run: npm cache clean --force
+
+      - name: Setup NX early
+        run: npx nx reset
+
       - name: Install dependencies
         run: |
           npm ci \
             --prefer-offline \
             --no-audit \
             --no-fund \
-            --legacy-peer-deps
+            --legacy-peer-deps \
+            --verbose \
+            --network-timeout 600000
         timeout-minutes: 20
         env:
-          npm_config_maxsockets: 10
+          npm_config_maxsockets: 5  # Reduced from 10
 
       - name: Derive appropriate SHAs for base and head for `nx affected` commands
         uses: nrwl/nx-set-shas@v4
-
-      - name: Setup NX
-        run: npx nx reset
 
       - name: Lint affected projects
         run: npx nx affected -t lint --parallel=3 --configuration=ci
@@ -84,10 +88,9 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
-
   publish-ghcr:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # Fixed: Consistent with build job
     timeout-minutes: 20
 
     steps:
@@ -103,7 +106,7 @@ jobs:
           FROM node:20-alpine
           WORKDIR /app
           COPY . .
-          RUN npm ci --production --no-audit --no-fund
+          RUN npm ci --production --no-audit --no-fund --network-timeout 600000
           EXPOSE 3000
           CMD ["node", "main.js"]
           EOF
