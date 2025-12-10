@@ -71,8 +71,6 @@ jobs:
       - name: Build frontend explicitly
         run: npx nx build frontend --configuration=ci
 
-      - name: "Diagnostic: show frontend .next after nx build"
-        run: "echo 'Listing apps/frontend/.next (if present)'; if [ -d apps/frontend/.next ]; then ls -la apps/frontend/.next || true; if [ -f apps/frontend/.next/BUILD_ID ]; then echo 'BUILD_ID file contents:'; cat apps/frontend/.next/BUILD_ID || true; else echo 'No BUILD_ID in apps/frontend/.next'; fi; else echo 'No apps/frontend/.next directory found'; fi"
 
       - name: Prepare backend image context (local)
         run: |
@@ -198,55 +196,13 @@ jobs:
         env:
           DOCKER_BUILDKIT: 1
 
-      # ------------------ Frontend image build & push ------------------
-      - name: Prepare frontend image context (local)
+      # ------------------ Frontend image build & push (Dev mode) ------------------
+      - name: Build and push frontend image (dev mode)
         run: |
           set -e
-          rm -rf frontend-image-context
+          
+          # Create Dockerfile for frontend dev image
           mkdir -p frontend-image-context
-
-          # Copy entire repo structure to preserve NX workspace structure
-          # This is needed because next.config.js uses @nx/next plugins
-          cp package.json package-lock.json* frontend-image-context/ 2>/dev/null || true
-          cp tsconfig.base.json tsconfig.json nx.json frontend-image-context/ 2>/dev/null || true
-          cp eslint.config.mjs frontend-image-context/ 2>/dev/null || true
-          
-          # Copy entire apps directory structure
-          mkdir -p frontend-image-context/apps
-          rsync -a \
-            --exclude 'node_modules' \
-            --exclude '.next' \
-            --exclude 'dist' \
-            apps/ frontend-image-context/apps/
-
-          # Copy prebuilt .next from runner if present (from npm run build on runner)
-          if [ -d apps/frontend/.next ]; then
-            echo "Copying prebuilt .next from runner to save build time"
-            cp -r apps/frontend/.next frontend-image-context/apps/frontend/.next
-          else
-            echo "No prebuilt .next from runner - will build inside Docker"
-          fi
-
-          # Ensure public dir exists
-          [ -d frontend-image-context/apps/frontend/public ] || mkdir -p frontend-image-context/apps/frontend/public
-
-          echo "frontend-image-context contents:"
-          ls -la frontend-image-context
-          
-          echo "Verifying critical files:"
-          test -f frontend-image-context/package.json && echo "✓ package.json present" || echo "✗ package.json missing"
-          test -f frontend-image-context/apps/frontend/next.config.js && echo "✓ next.config.js present" || echo "✗ next.config.js missing"
-          test -f frontend-image-context/tsconfig.base.json && echo "✓ tsconfig.base.json present" || echo "✗ tsconfig.base.json missing"
-          
-          if [ -d frontend-image-context/apps/frontend/.next ]; then
-            echo "✓ prebuilt .next present"
-            if [ -f frontend-image-context/apps/frontend/.next/BUILD_ID ]; then
-              echo "✓ BUILD_ID present in prebuilt .next"
-            fi
-          fi
-
-      - name: Create Dockerfile for frontend image (local)
-        run: |
           cat > frontend-image-context/Dockerfile <<'EOF'
           FROM node:20-alpine
           WORKDIR /app
@@ -254,73 +210,36 @@ jobs:
           # Copy entire workspace
           COPY . ./
           
-          # Install all dependencies from root package.json
+          # Install all dependencies
           RUN if [ -f package-lock.json ]; then \
             npm ci --legacy-peer-deps --no-audit --no-fund; \
           else \
             npm install --legacy-peer-deps --no-audit --no-fund; \
           fi
           
-          # Ensure @nx/next is installed
-          RUN npm list @nx/next > /dev/null 2>&1 || npm install @nx/next@22.1.3 --legacy-peer-deps --no-audit --no-fund
-          
-          # Check if .next already exists (prebuilt from runner)
-          RUN if [ -d apps/frontend/.next ] && [ -f apps/frontend/.next/BUILD_ID ]; then \
-            echo "✓ Using prebuilt .next from context"; \
-          else \
-            echo "Building .next inside Docker..."; \
-            cd apps/frontend && npm run build; \
-          fi
-          
-          # Verify BUILD_ID exists (required by next start)
-          RUN test -f apps/frontend/.next/BUILD_ID || (echo "ERROR: BUILD_ID not found!" && ls -la apps/frontend/.next && exit 1)
-          
-          # Set working directory to frontend app for runtime
-          WORKDIR /app/apps/frontend
-          
           EXPOSE 3000
-          CMD ["npm", "run", "start"]
+          CMD ["npm", "run", "dev", "-w", "frontend"]
           EOF
-
-      - name: Login to GHCR
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build frontend image (local)
-        run: |
-          set -e
+          
+          # Copy workspace files to context
+          cp package.json package-lock.json* frontend-image-context/ 2>/dev/null || true
+          cp tsconfig.base.json tsconfig.json nx.json eslint.config.mjs frontend-image-context/ 2>/dev/null || true
+          
+          # Copy all apps
+          mkdir -p frontend-image-context/apps
+          rsync -a \
+            --exclude 'node_modules' \
+            --exclude '.next' \
+            --exclude 'dist' \
+            apps/ frontend-image-context/apps/
+          
+          # Build and push
           docker buildx create --use --name mybuilder --driver docker-container --bootstrap || true
-          docker buildx inspect --bootstrap
-          # build & push the frontend image directly to GHCR (avoids a separate push step)
           docker buildx build \
             --platform linux/amd64 \
             --tag ghcr.io/${{ github.repository_owner }}/frontend:latest \
             --tag ghcr.io/${{ github.repository_owner }}/frontend:dev \
             --push \
-            frontend-image-context || true
-          # show images (local builder cache)
-          docker images --digests || true
-          # cleanup unused builder data
-          docker buildx prune --all --force || true
-
-      - name: Smoke-test pushed frontend image (requires successful push)
-        run: |
-          set -e
-          IMAGE=ghcr.io/${{ github.repository_owner }}/frontend:latest
-          echo "Pulling $IMAGE"
-          docker pull "$IMAGE"
-          echo "Running runtime checks for frontend image"
-          docker run --rm "$IMAGE" sh -c "echo '=== Runtime diagnostics ===' && \
-            echo 'Current directory:' && pwd && \
-            echo 'Directory contents:' && ls -la && \
-            echo '.next directory:' && ls -la .next 2>/dev/null || echo 'NO .next directory' && \
-            echo 'BUILD_ID contents:' && cat .next/BUILD_ID 2>/dev/null && echo '(BUILD_ID OK)' || echo 'ERROR: BUILD_ID missing' && \
-            echo 'package.json:' && cat package.json | head -10 && \
-            echo 'Node version:' && node --version && \
-            echo 'npm version:' && npm --version && \
-            echo '--- Test npm ls ---' && npm ls --prod --depth=0 2>/dev/null | head -20"
-        env:
-          DOCKER_BUILDKIT: 1
+            frontend-image-context
+          
+          echo "✓ Frontend image built and pushed successfully"
