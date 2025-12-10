@@ -195,6 +195,106 @@ jobs:
         env:
           DOCKER_BUILDKIT: 1
 
+      # ------------------ Frontend image build & push ------------------
+      - name: Prepare frontend image context (local)
+        run: |
+          set -e
+          rm -rf frontend-image-context
+          mkdir -p frontend-image-context
+
+          # copy built output - adjust path depending on Next.js build output used by your NX config
+          if [ -d apps/frontend/.next ]; then
+            cp -r apps/frontend/.next frontend-image-context/.next
+          elif [ -d apps/frontend/dist ]; then
+            cp -r apps/frontend/dist frontend-image-context/dist
+          else
+            echo "Error: frontend build output not found (apps/frontend/.next or apps/frontend/dist)"
+            ls -la apps/frontend || true
+            exit 1
+          fi
+
+          # copy package.json (prefer app package.json, fall back to root)
+          if [ -f apps/frontend/package.json ]; then
+            cp apps/frontend/package.json frontend-image-context/package.json
+          elif [ -f package.json ]; then
+            cp package.json frontend-image-context/package.json
+          else
+            echo "No package.json found for frontend image context"
+            exit 1
+          fi
+
+          # Create .env with required public variable
+          cat > frontend-image-context/.env <<'EOF'
+          NEXT_PUBLIC_GRAPHQL_URL=http://cwws0g0c4sckc8w0ckowkgc0.116.203.84.69.sslip.io/graphql
+          EOF
+
+          echo "frontend-image-context contents:"
+          ls -la frontend-image-context
+
+      - name: Create Dockerfile for frontend image (local)
+        run: |
+          cat > frontend-image-context/Dockerfile <<'EOF'
+          #################################################################
+          # Simple Dockerfile for Next.js frontend
+          # Assumes build output is in .next and runtime runs with 'next start'
+          #################################################################
+          FROM node:20-alpine AS deps
+          WORKDIR /app
+          COPY package.json package-lock.json* ./
+          RUN if [ -f package-lock.json ]; then \
+            npm ci --omit=dev --legacy-peer-deps --no-audit --no-fund --production; \
+          else \
+            npm install --omit=dev --legacy-peer-deps --no-audit --no-fund --production; \
+          fi
+
+          FROM node:20-alpine AS runtime
+          WORKDIR /app
+          COPY --from=deps /app/node_modules ./node_modules
+          COPY .next .next
+          # copy public if exists (static assets)
+          COPY public ./public || true
+          # copy .env to the image
+          COPY .env .env
+          EXPOSE 3000
+          CMD ["npx", "next", "start", "-p", "3000"]
+          EOF
+
+      - name: Login to GHCR for frontend
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build frontend image (local)
+        run: |
+          set -e
+          docker buildx create --use --name mybuilder-frontend --driver docker-container --bootstrap || true
+          docker buildx inspect --bootstrap
+          docker buildx build \
+            --platform linux/amd64 \
+            --tag ghcr.io/${{ github.repository_owner }}/frontend:latest \
+            --tag ghcr.io/${{ github.repository_owner }}/frontend:dev \
+            --push \
+            frontend-image-context || true
+          docker buildx prune --all --force || true
+
+      - name: Smoke-test pushed frontend image
+        run: |
+          set -e
+          IMAGE=ghcr.io/${{ github.repository_owner }}/frontend:latest
+          echo "Pulling $IMAGE"
+          docker pull "$IMAGE"
+          echo "Running quick smoke test: start container and curl /_next/ (checks that app serves)")
+          docker run --rm -d --name fe-smoke -p 3001:3000 "$IMAGE"
+          sleep 3
+          # check root and an asset path
+          curl -sS --fail http://localhost:3001/ || (docker logs fe-smoke && exit 2)
+          curl -sS --fail http://localhost:3001/_next/static/ || true
+          docker rm -f fe-smoke || true
+        env:
+          DOCKER_BUILDKIT: 1
+
       - name: Notify if there are affected projects
         if: ${{ steps.derivative.outputs.affected == 'true' }}
         run: |
