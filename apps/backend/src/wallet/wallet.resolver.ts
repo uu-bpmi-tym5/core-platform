@@ -6,6 +6,7 @@ import { WalletService } from './wallet.service';
 import { WalletTX } from './entities/wallet-tx.entity';
 import { CampaignContribution } from '../campaigns/entities/campaign-contribution.entity';
 import { ContributeToCampaignInput, BankWithdrawalInput } from './dto';
+import { PaginationInput, WalletTransactionFilter } from './dto/get-wallet-transactions.input'; 
 
 @Resolver()
 @UseGuards(JwtAuthGuard)
@@ -20,6 +21,23 @@ export class WalletResolver {
   @Query(() => [WalletTX], { name: 'walletTransactions' })
   async getWalletTransactions(@GetCurrentUser() user: any): Promise<WalletTX[]> {
     return this.walletService.getUserTransactions(user.userId);
+  }
+
+@Query(() => [WalletTX], { name: 'myWalletTransactions' })
+  async getMyWalletTransactions(
+    @GetCurrentUser() user: any,
+    @Args('pagination', { nullable: true }) pagination?: PaginationInput,
+    @Args('filter', { nullable: true }) filter?: WalletTransactionFilter,
+  ): Promise<WalletTX[]> {
+    // Defaultní hodnoty
+    const paginationInput = pagination || { limit: 100, offset: 0 };
+    const filterInput = filter || {};
+
+    return this.walletService.getFilteredUserTransactions(
+      user.userId,
+      filterInput,
+      paginationInput
+    );
   }
 
   @Mutation(() => WalletTX)

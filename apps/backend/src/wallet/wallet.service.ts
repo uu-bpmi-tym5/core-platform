@@ -1,11 +1,12 @@
 import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { WalletTX, TransactionType, TransactionStatus } from './entities/wallet-tx.entity';
 import { User } from '../users/entities/user.entity';
 import { Campaign } from '../campaigns/entities/campaign.entity';
 import { CampaignContribution } from '../campaigns/entities/campaign-contribution.entity';
 import { ContributeToCampaignInput, BankWithdrawalInput } from './dto';
 import { NotificationsClient } from '../notifications/notifications.client';
+import { PaginationInput, WalletTransactionFilter } from './dto/get-wallet-transactions.input';
 
 @Injectable()
 export class WalletService {
@@ -40,6 +41,92 @@ export class WalletService {
       relations: ['user'],
       order: { createdAt: 'DESC' },
     });
+  }
+async getFilteredUserTransactions(
+    userId: string,
+    filter: WalletTransactionFilter,
+    pagination: PaginationInput
+  ): Promise<WalletTX[]> {
+
+    //validace vstupu
+
+    // min>max
+    if (filter.minAmount != null && filter.maxAmount != null) {
+      if (filter.minAmount > filter.maxAmount) {
+        throw new BadRequestException('minAmount nemůže být větší než maxAmount');
+      }
+    }
+
+    // fromDate > toDate
+    if (filter.fromDate && filter.toDate) {
+      if (new Date(filter.fromDate) > new Date(filter.toDate)) {
+        throw new BadRequestException('fromDate nemůže být později než toDate');
+      }
+    }
+
+    // listování
+    // nesmí být záporný limit
+    if (pagination.limit <= 0) {
+      throw new BadRequestException('Listování limit musí být kladné číslo');
+    }
+    // stránek limit 100
+    if (pagination.limit > 100) {
+      throw new BadRequestException('Listování limit nesmí být větší než 100'); 
+    }
+    // offset nesmí být záporný
+    if (pagination.offset < 0) {
+       throw new BadRequestException('Offset nesmí být záporný');
+    }
+
+    const query = this.walletTxRepository.createQueryBuilder('tx');
+    query.where('tx.userId = :userId', { userId });
+
+    //filtry
+    
+    //status
+    if (filter.status && filter.status.length > 0) {
+      query.andWhere('tx.status IN (:...statuses)', { statuses: filter.status });
+    }
+
+    //typ
+    if (filter.type && filter.type.length > 0) {
+      query.andWhere('tx.type IN (:...types)', { types: filter.type });
+    }
+
+    //datum
+    if (filter.fromDate) {
+      query.andWhere('tx.createdAt >= :from', { from: filter.fromDate });
+    }
+    if (filter.toDate) {
+      query.andWhere('tx.createdAt <= :to', { to: filter.toDate });
+    }
+
+    //částky
+    if (filter.minAmount != null) {
+      query.andWhere('tx.amount >= :minAmount', { minAmount: filter.minAmount });
+    }
+    if (filter.maxAmount != null) {
+      query.andWhere('tx.amount <= :maxAmount', { maxAmount: filter.maxAmount });
+    }
+
+    //jednoduchý search
+    if (filter.search) {
+      query.andWhere(
+        new Brackets((qb) => {
+          qb.where('tx.description LIKE :search', { search: `%${filter.search}%` })
+            .orWhere('tx.externalReference LIKE :search', { search: `%${filter.search}%` });
+        }),
+      );
+    }
+
+   //stránkování
+
+    query.orderBy('tx.createdAt', 'DESC');
+    query.take(pagination.limit); 
+    query.skip(pagination.offset);
+
+    
+    return query.getMany();
   }
 
   async depositMoney(userId: string, amount: number, externalReference?: string): Promise<WalletTX> {
