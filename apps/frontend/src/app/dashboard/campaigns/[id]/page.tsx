@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ExportContributionsButton } from '@/components/export-contributions-button';
 import {
   ArrowLeft,
   TrendingUp,
@@ -402,13 +403,20 @@ export default function CreatorCampaignDetailPage() {
           <TabsContent value="contributions">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5" />
-                  Contribution History
-                </CardTitle>
-                <CardDescription>
-                  All contributions made to your campaign
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <DollarSign className="h-5 w-5" />
+                      Contribution History
+                    </CardTitle>
+                    <CardDescription>
+                      All contributions made to your campaign
+                    </CardDescription>
+                  </div>
+                  {authToken && contributions.length > 0 && (
+                    <ExportContributionsButton campaignId={campaignId} authToken={authToken} />
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {contributions.length === 0 ? (
