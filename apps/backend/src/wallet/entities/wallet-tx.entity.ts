@@ -17,12 +17,21 @@ export enum TransactionStatus {
   CANCELLED = 'CANCELLED'
 }
 
+export enum TransactionDirection {
+  CREDIT = 'CREDIT',   // Příjem (Deposit, Refund)
+  DEBIT = 'DEBIT'  // Výdej (Platba, Výběr)
+}
+
 registerEnumType(TransactionType, {
   name: 'TransactionType',
 });
 
 registerEnumType(TransactionStatus, {
   name: 'TransactionStatus',
+});
+
+registerEnumType(TransactionDirection, {
+  name: 'WalletTransactionDirection', 
 });
 
 @Entity()
@@ -74,4 +83,30 @@ export class WalletTX {
   @CreateDateColumn()
   @Field(() => Date, { description: 'Creation date of the transaction' })
   createdAt: Date;
+
+  @Field(() => String, { description: 'Měna transakce' })
+  get currency(): string {
+    return 'USD';
+  }
+
+  @Field(() => TransactionDirection, { description: 'Rozhodnutí o směru transakce (CREDIT/DEBIT)' })
+  get direction(): TransactionDirection {
+    switch (this.type) {
+      case TransactionType.DEPOSIT:
+      case TransactionType.REFUND:
+        return TransactionDirection.CREDIT;
+      
+      case TransactionType.WITHDRAWAL:
+      case TransactionType.CAMPAIGN_CONTRIBUTION:
+      case TransactionType.BANK_WITHDRAWAL:
+        return TransactionDirection.DEBIT;
+      
+      default:
+        return TransactionDirection.DEBIT; 
+    }
+  }
+
+
+  
 }
+
