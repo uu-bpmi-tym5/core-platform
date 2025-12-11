@@ -12,6 +12,7 @@ import { GetCurrentUser } from '../auth/decorators/get-current-user.decorator';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { Role, Permission } from '../auth/enums';
 import type {JwtPayload} from "../auth/auth.service";
+import {ReportCommentInput, ModerateCommentInput, DeleteMyCommentInput} from './dto/moderation.input';
 
 @Resolver(() => Campaign)
 export class CampaignsResolver {
@@ -200,4 +201,34 @@ export class CampaignsResolver {
   async getComments(@Args('campaignId') campaignId: string): Promise<Comment[]> {
     return this.campaignsService.getComments(campaignId);
   }
+
+  @Mutation(() => Boolean) 
+  @UseGuards(JwtAuthGuard)
+  async reportComment(
+    @Args('input') input: ReportCommentInput,
+    @GetCurrentUser() user: JwtPayload,
+  ): Promise<boolean> {
+    const result = await this.campaignsService.reportComment(user.userId, input);
+    return result.success;
+  }
+
+  @Mutation(() => Comment)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequirePermissions(Permission.MODERATE_COMMENTS) //Pouze Moderátor/Admin
+  async moderateComment(
+    @Args('input') input: ModerateCommentInput,
+    @GetCurrentUser() user: JwtPayload,
+  ): Promise<Comment> {
+    return this.campaignsService.moderateComment(user.userId, input);
+  }
+
+  @Mutation(() => Comment)
+  @UseGuards(JwtAuthGuard)
+  async deleteMyComment(
+    @Args('input') input: DeleteMyCommentInput,
+    @GetCurrentUser() user: JwtPayload,
+  ): Promise<Comment> {
+    return this.campaignsService.deleteMyComment(user.userId, input);
+  }
+
 }
