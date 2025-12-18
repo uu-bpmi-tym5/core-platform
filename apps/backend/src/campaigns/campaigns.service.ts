@@ -404,6 +404,20 @@ export class CampaignsService {
       throw new NotFoundException('Comment not found after creation');
     }
 
+    // Pošleme notifikaci tvůrci kampaně (pokud komentář nepřidal sám tvůrce)
+    const campaign = foundComment.campaign;
+    if (campaign && campaign.creatorId !== userId) {
+      const commenterName = foundComment.user?.email || 'Někdo';
+      const commentPreview = content.length > 50 ? content.substring(0, 50) + '...' : content;
+
+      await this.notificationsClient.createInfoNotification(
+        campaign.creatorId,
+        'Nový komentář ke kampani 💬',
+        `${commenterName} přidal komentář ke kampani "${campaign.name}": "${commentPreview}"`,
+        `/campaigns/${campaignId}`
+      );
+    }
+
     return foundComment;
   }
 
