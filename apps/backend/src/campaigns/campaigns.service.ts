@@ -7,6 +7,13 @@ import {CampaignContribution} from './entities/campaign-contribution.entity';
 import {Comment} from './entities/comment.entity';
 import {CreateCampaignFeedbackInput, CreateCampaignInput, UpdateCampaignInput, UpdateCampaignStatsInput} from './dto';
 import {NotificationsClient} from '../notifications/notifications.client';
+import {CommentStatus, } from './entities/comment.entity';
+import {ReportCommentInput, ModerateCommentInput, ModerationAction, DeleteMyCommentInput,} from './dto/moderation.input';
+import {ForbiddenException} from '@nestjs/common';
+import {CommentReport} from './entities/comment-report.entity';
+
+//Threshold pro automatické skrytí komentáře po nahlášení
+const AUTO_HIDE_THRESHOLD = 5;
 
 @Injectable()
 export class CampaignsService {
@@ -22,6 +29,8 @@ export class CampaignsService {
     @Inject('COMMENT_REPOSITORY')
     private commentRepository: Repository<Comment>,
     private notificationsClient: NotificationsClient,
+    @Inject('COMMENT_REPORT_REPOSITORY')
+    private commentReportRepository: Repository<CommentReport>,
   ) {}
 
   async createCampaign(createCampaignInput: CreateCampaignInput, creatorId: string): Promise<Campaign> {
@@ -421,11 +430,111 @@ export class CampaignsService {
     return foundComment;
   }
 
+  
+  //report komentáře
+  async reportComment(userId: string, input: ReportCommentInput): Promise<{ success: boolean; message?: string }> {
+    const comment = await this.commentRepository.findOne({ where: { id: input.commentId } });
+
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    if (comment.status === CommentStatus.REMOVED) {
+      throw new BadRequestException('Cannot report a removed comment');
+    }
+    
+
+    //auto skrytí při překročení limitu
+    const existingReport = await this.commentReportRepository.findOne({
+      where: {
+        userId: userId,
+        commentId: input.commentId
+      }
+    });
+
+    if (existingReport) {
+      //když už user komentář nahlásil tak mu to nedovolí reportnout znovu
+      throw new BadRequestException('You have already reported this comment');
+    }else{
+
+      //vytoření reportu
+      const report = this.commentReportRepository.create({
+        userId,
+        commentId: input.commentId,
+      });
+    
+      await this.commentReportRepository.save(report);
+
+      comment.reportsCount += 1;
+      comment.lastReportedAt = new Date();
+
+      if (comment.reportsCount >= AUTO_HIDE_THRESHOLD) {
+        comment.status = CommentStatus.HIDDEN;
+      }
+    }
+    await this.commentRepository.save(comment);
+
+    return { success: true };
+  }
+
+  async moderateComment(moderatorId: string, input: ModerateCommentInput): Promise<Comment> {
+    const comment = await this.commentRepository.findOne({ where: { id: input.commentId } });
+
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    // Aplikace akce
+    switch (input.action) {
+      case ModerationAction.HIDE:
+        comment.status = CommentStatus.HIDDEN;
+        break;
+      case ModerationAction.REMOVE:
+        comment.status = CommentStatus.REMOVED;
+        break;
+      case ModerationAction.RESTORE:
+        comment.status = CommentStatus.VISIBLE;
+        break;
+    }
+
+    comment.moderatedBy = moderatorId;
+    if (input.reason) {
+      comment.moderationReason = input.reason;
+    }
+
+    return this.commentRepository.save(comment);
+  }
+
+  async deleteMyComment(userId: string, input: DeleteMyCommentInput): Promise<Comment> {
+    const comment = await this.commentRepository.findOne({ where: { id: input.commentId } });
+
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    // Kontrola vlastnictví
+    if (comment.userId !== userId) {
+      throw new ForbiddenException('You can only delete your own comments');
+    }
+
+    // Soft delete - nastavení statusu na REMOVED
+    comment.status = CommentStatus.REMOVED;
+    // Volitelně: Můžeme přepsat obsah, jak je v zadání
+    comment.content = '[Deleted by author]'; 
+
+    return this.commentRepository.save(comment);
+  }
+
+  //Úprava metody pro ziskani komentaru, vraci pouze viditelne komentare
   async getComments(campaignId: string): Promise<Comment[]> {
     return this.commentRepository.find({
-      where: { campaignId },
+      where: { 
+        campaignId,
+        status: CommentStatus.VISIBLE
+      },
       relations: ['user'],
       order: { createdAt: 'DESC' },
     });
   }
+  
 }
