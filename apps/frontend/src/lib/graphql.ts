@@ -59,8 +59,6 @@ export interface Campaign {
   category: string;
   status: string;
   imageData?: string | null;
-  imageData?: string | null;
-  imageData?: string | null;
   createdAt: string;
   updatedAt: string;
   creator?: {
