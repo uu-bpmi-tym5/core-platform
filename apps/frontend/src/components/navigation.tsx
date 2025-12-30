@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Button } from './ui/button';
 import { User, LayoutDashboard, Menu, X, CreditCard } from 'lucide-react';
 import { useUserRole } from '@/lib/useUserRole';
+import { NotificationsDropdown } from './notifications-dropdown';
 
 export function Navigation() {
   const pathname = usePathname();
@@ -69,6 +70,8 @@ export function Navigation() {
             );
           })}
 
+          {authToken && <NotificationsDropdown />}
+
           {!authToken && (
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" asChild>
@@ -94,6 +97,13 @@ export function Navigation() {
       {mobileMenuOpen && (
         <div className="border-t border-border bg-background px-4 py-4 md:hidden">
           <div className="flex flex-col gap-4">
+            {authToken && (
+              <div className="flex items-center justify-between pb-2 border-b border-border">
+                <span className="text-sm font-medium text-muted-foreground">Notifications</span>
+                <NotificationsDropdown />
+              </div>
+            )}
+
             {navLinks.map((link) => {
               const Icon = link.icon;
               return (

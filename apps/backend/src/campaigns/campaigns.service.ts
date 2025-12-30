@@ -5,7 +5,9 @@ import {CampaignFeedback} from './entities/campaign-feedback.entity';
 import {CampaignStats} from './entities/campaign-stats.entity';
 import {CampaignContribution} from './entities/campaign-contribution.entity';
 import {Comment} from './entities/comment.entity';
-import {CreateCampaignFeedbackInput, CreateCampaignInput, UpdateCampaignInput, UpdateCampaignStatsInput} from './dto';
+import {CampaignSurvey} from './entities/campaign-survey.entity';
+import {CampaignSurveyResponse} from './entities/campaign-survey-response.entity';
+import {CreateCampaignFeedbackInput, CreateCampaignInput, UpdateCampaignInput, UpdateCampaignStatsInput, CreateCampaignSurveyInput, SubmitSurveyResponseInput} from './dto';
 import {NotificationsClient} from '../notifications/notifications.client';
 import {CommentStatus, } from './entities/comment.entity';
 import {ReportCommentInput, ModerateCommentInput, ModerationAction, DeleteMyCommentInput,} from './dto/moderation.input';
@@ -31,6 +33,10 @@ export class CampaignsService {
     private notificationsClient: NotificationsClient,
     @Inject('COMMENT_REPORT_REPOSITORY')
     private commentReportRepository: Repository<CommentReport>,
+    @Inject('CAMPAIGN_SURVEY_REPOSITORY')
+    private surveyRepository: Repository<CampaignSurvey>,
+    @Inject('CAMPAIGN_SURVEY_RESPONSE_REPOSITORY')
+    private surveyResponseRepository: Repository<CampaignSurveyResponse>,
   ) {}
 
   async createCampaign(createCampaignInput: CreateCampaignInput, creatorId: string): Promise<Campaign> {
@@ -536,5 +542,156 @@ export class CampaignsService {
       order: { createdAt: 'DESC' },
     });
   }
-  
+
+  // Survey methods
+  async createCampaignSurvey(input: CreateCampaignSurveyInput, creatorId: string): Promise<CampaignSurvey> {
+    // Verify campaign ownership
+    const campaign = await this.findCampaignById(input.campaignId);
+    if (campaign.creatorId !== creatorId) {
+      throw new ForbiddenException('Only campaign owner can create surveys');
+    }
+
+    const survey = this.surveyRepository.create({
+      ...input,
+      creatorId,
+    });
+
+    const savedSurvey = await this.surveyRepository.save(survey);
+
+    // Get all backers for this campaign
+    const contributions = await this.contributionRepository.find({
+      where: { campaignId: input.campaignId },
+      relations: ['contributor'],
+    });
+
+    // Get unique backer IDs
+    const backerIds = [...new Set(contributions.map(c => c.contributorId))];
+
+    // Send notifications to all backers
+    for (const backerId of backerIds) {
+      await this.notificationsClient.createInfoNotification(
+        backerId,
+        'New Survey Available',
+        `"${campaign.name}" creator requests your feedback: ${input.title}`,
+        `/campaigns/${input.campaignId}/survey/${savedSurvey.id}`
+      );
+    }
+
+    return savedSurvey;
+  }
+
+  async getCampaignSurveys(campaignId: string): Promise<CampaignSurvey[]> {
+    return this.surveyRepository.find({
+      where: { campaignId },
+      relations: ['creator'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async getSurveyById(surveyId: string): Promise<CampaignSurvey> {
+    const survey = await this.surveyRepository.findOne({
+      where: { id: surveyId },
+      relations: ['campaign', 'creator'],
+    });
+
+    if (!survey) {
+      throw new NotFoundException(`Survey with ID ${surveyId} not found`);
+    }
+
+    return survey;
+  }
+
+  async submitSurveyResponse(input: SubmitSurveyResponseInput, respondentId: string): Promise<CampaignSurveyResponse> {
+    const survey = await this.getSurveyById(input.surveyId);
+
+    if (!survey.isActive) {
+      throw new BadRequestException('This survey is no longer active');
+    }
+
+    // Verify user is a backer
+    const contribution = await this.contributionRepository.findOne({
+      where: {
+        campaignId: survey.campaignId,
+        contributorId: respondentId,
+      },
+    });
+
+    if (!contribution) {
+      throw new ForbiddenException('Only campaign backers can respond to surveys');
+    }
+
+    // Check if user already responded
+    const existingResponse = await this.surveyResponseRepository.findOne({
+      where: {
+        surveyId: input.surveyId,
+        respondentId,
+      },
+    });
+
+    if (existingResponse) {
+      throw new BadRequestException('You have already responded to this survey');
+    }
+
+    // Validate answers match questions
+    if (input.answers.length !== survey.questions.length) {
+      throw new BadRequestException('Number of answers must match number of questions');
+    }
+
+    const response = this.surveyResponseRepository.create({
+      ...input,
+      respondentId,
+    });
+
+    const savedResponse = await this.surveyResponseRepository.save(response);
+
+    // Notify campaign creator
+    await this.notificationsClient.createInfoNotification(
+      survey.creatorId,
+      'New Survey Response',
+      `Someone responded to your survey: ${survey.title}`,
+      `/dashboard/campaigns/${survey.campaignId}/surveys/${survey.id}`
+    );
+
+    return savedResponse;
+  }
+
+  async getSurveyResponses(surveyId: string, requestingUserId: string): Promise<CampaignSurveyResponse[]> {
+    const survey = await this.getSurveyById(surveyId);
+
+    // Only campaign owner can view responses
+    if (survey.creatorId !== requestingUserId) {
+      throw new ForbiddenException('Only campaign owner can view survey responses');
+    }
+
+    return this.surveyResponseRepository.find({
+      where: { surveyId },
+      relations: ['respondent'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async hasUserRespondedToSurvey(surveyId: string, userId: string): Promise<boolean> {
+    const response = await this.surveyResponseRepository.findOne({
+      where: {
+        surveyId,
+        respondentId: userId,
+      },
+    });
+
+    return !!response;
+  }
+
+  async closeSurvey(surveyId: string, userId: string): Promise<CampaignSurvey> {
+    const survey = await this.getSurveyById(surveyId);
+
+    if (survey.creatorId !== userId) {
+      throw new ForbiddenException('Only campaign owner can close surveys');
+    }
+
+    survey.isActive = false;
+    survey.closedAt = new Date();
+
+    return this.surveyRepository.save(survey);
+  }
+
 }

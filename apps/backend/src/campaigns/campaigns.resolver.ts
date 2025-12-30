@@ -1,10 +1,8 @@
 import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
 import { UseGuards, ForbiddenException } from '@nestjs/common';
 import { CampaignsService } from './campaigns.service';
-import { Campaign } from './entities/campaign.entity';
-import { Comment } from './entities/comment.entity';
-import { CampaignContribution } from './entities/campaign-contribution.entity';
-import { CreateCampaignInput, UpdateCampaignInput } from './dto';
+import { Campaign, Comment, CampaignContribution, CampaignSurvey, CampaignSurveyResponse } from './entities';
+import { CreateCampaignInput, UpdateCampaignInput, CreateCampaignSurveyInput, SubmitSurveyResponseInput } from './dto';
 import { CampaignContributionStats } from './dto/campaign-contribution-stats.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -172,6 +170,14 @@ export class CampaignsResolver {
     return this.campaignsService.getCampaignContributions(campaignId);
   }
 
+  @Query(() => CampaignContributionStats, { name: 'publicCampaignStats' })
+  async getPublicCampaignStats(
+    @Args('campaignId') campaignId: string,
+  ): Promise<CampaignContributionStats> {
+    // Public access to basic campaign statistics
+    return this.campaignsService.getCampaignContributionStats(campaignId);
+  }
+
   @Query(() => CampaignContributionStats, { name: 'campaignContributionStats' })
   @UseGuards(JwtAuthGuard)
   async getCampaignContributionStats(
@@ -229,6 +235,66 @@ export class CampaignsResolver {
     @GetCurrentUser() user: JwtPayload,
   ): Promise<Comment> {
     return this.campaignsService.deleteMyComment(user.userId, input);
+  }
+
+  // Survey methods
+  @Mutation(() => CampaignSurvey)
+  @UseGuards(JwtAuthGuard)
+  async createCampaignSurvey(
+    @Args('input') input: CreateCampaignSurveyInput,
+    @GetCurrentUser() user: JwtPayload,
+  ): Promise<CampaignSurvey> {
+    return this.campaignsService.createCampaignSurvey(input, user.userId);
+  }
+
+  @Query(() => [CampaignSurvey], { name: 'campaignSurveys' })
+  async getCampaignSurveys(
+    @Args('campaignId') campaignId: string,
+  ): Promise<CampaignSurvey[]> {
+    return this.campaignsService.getCampaignSurveys(campaignId);
+  }
+
+  @Query(() => CampaignSurvey, { name: 'campaignSurvey' })
+  async getSurveyById(
+    @Args('surveyId') surveyId: string,
+  ): Promise<CampaignSurvey> {
+    return this.campaignsService.getSurveyById(surveyId);
+  }
+
+  @Mutation(() => CampaignSurveyResponse)
+  @UseGuards(JwtAuthGuard)
+  async submitSurveyResponse(
+    @Args('input') input: SubmitSurveyResponseInput,
+    @GetCurrentUser() user: JwtPayload,
+  ): Promise<CampaignSurveyResponse> {
+    return this.campaignsService.submitSurveyResponse(input, user.userId);
+  }
+
+  @Query(() => [CampaignSurveyResponse], { name: 'surveyResponses' })
+  @UseGuards(JwtAuthGuard)
+  async getSurveyResponses(
+    @Args('surveyId') surveyId: string,
+    @GetCurrentUser() user: JwtPayload,
+  ): Promise<CampaignSurveyResponse[]> {
+    return this.campaignsService.getSurveyResponses(surveyId, user.userId);
+  }
+
+  @Query(() => Boolean, { name: 'hasUserRespondedToSurvey' })
+  @UseGuards(JwtAuthGuard)
+  async hasUserRespondedToSurvey(
+    @Args('surveyId') surveyId: string,
+    @GetCurrentUser() user: JwtPayload,
+  ): Promise<boolean> {
+    return this.campaignsService.hasUserRespondedToSurvey(surveyId, user.userId);
+  }
+
+  @Mutation(() => CampaignSurvey)
+  @UseGuards(JwtAuthGuard)
+  async closeSurvey(
+    @Args('surveyId') surveyId: string,
+    @GetCurrentUser() user: JwtPayload,
+  ): Promise<CampaignSurvey> {
+    return this.campaignsService.closeSurvey(surveyId, user.userId);
   }
 
 }

@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getCampaignById, Campaign, formatCurrency } from '@/lib/graphql';
+import { getCampaignById, getPublicCampaignStats, Campaign, CampaignContributionStats, formatCurrency } from '@/lib/graphql';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +20,7 @@ export default function CampaignDetailPage() {
   const id = params.id as string;
 
   const [campaign, setCampaign] = React.useState<Campaign | null>(null);
+  const [stats, setStats] = React.useState<CampaignContributionStats | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [isBackingOpen, setIsBackingOpen] = React.useState(false);
@@ -28,6 +29,15 @@ export default function CampaignDetailPage() {
     try {
       const data = await getCampaignById(id);
       setCampaign(data.campaign);
+
+      // Fetch contribution stats (public data)
+      try {
+        const statsData = await getPublicCampaignStats(id);
+        setStats(statsData.publicCampaignStats);
+      } catch (statsErr) {
+        console.error('Failed to load stats:', statsErr);
+        // Stats are optional, so we don't fail the whole page
+      }
     } catch (err) {
       console.error('Failed to load campaign:', err);
       setError('Failed to load campaign details');
@@ -41,6 +51,17 @@ export default function CampaignDetailPage() {
       fetchCampaign();
     }
   }, [id, fetchCampaign]);
+
+  const calculateDaysLeft = (endDate?: string | null): number | null => {
+    if (!endDate) return null;
+
+    const end = new Date(endDate);
+    const now = new Date();
+    const diffTime = end.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    return diffDays > 0 ? diffDays : 0;
+  };
 
   if (loading) {
     return (
@@ -130,7 +151,14 @@ export default function CampaignDetailPage() {
                   <Progress value={progress} className="h-3" />
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>{progress}% funded</span>
-                    <span>{0} days left</span> {/* Placeholder for days left */}
+                    <span>
+                      {(() => {
+                        const daysLeft = calculateDaysLeft(campaign.endDate);
+                        if (daysLeft === null) return 'No deadline';
+                        if (daysLeft === 0) return 'Ended';
+                        return `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`;
+                      })()}
+                    </span>
                   </div>
                 </div>
 
@@ -140,7 +168,7 @@ export default function CampaignDetailPage() {
                       <Users className="h-4 w-4" />
                       <span className="text-xs font-medium uppercase">Backers</span>
                     </div>
-                    <p className="text-xl font-semibold">0</p> {/* Placeholder for backers count */}
+                    <p className="text-xl font-semibold">{stats?.contributorsCount ?? 0}</p>
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 text-muted-foreground">

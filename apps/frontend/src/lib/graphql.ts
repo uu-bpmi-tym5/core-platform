@@ -59,6 +59,7 @@ export interface Campaign {
   category: string;
   status: string;
   imageData?: string | null;
+  endDate?: string | null;
   createdAt: string;
   updatedAt: string;
   creator?: {
@@ -387,10 +388,9 @@ export async function getCampaignById(campaignId: string) {
           imageData
           goal
           currentAmount
-          imageData
           category
           status
-          imageData
+          endDate
           createdAt
           updatedAt
           creator {
@@ -497,6 +497,22 @@ export async function getCampaignContributionStats(token: string | null, campaig
   );
 }
 
+export async function getPublicCampaignStats(campaignId: string) {
+  return fetchGraphQL<{ publicCampaignStats: CampaignContributionStats }>(
+    `
+      query GetPublicCampaignStats($campaignId: String!) {
+        publicCampaignStats(campaignId: $campaignId) {
+          totalContributions
+          totalAmount
+          averageContribution
+          contributorsCount
+        }
+      }
+    `,
+    { campaignId },
+  );
+}
+
 export async function updateCampaign(
   token: string | null,
   input: {
@@ -599,6 +615,159 @@ export async function getComments(campaignId: string) {
   );
 }
 
+// Survey types and functions
+export interface CampaignSurvey {
+  id: string;
+  campaignId: string;
+  title: string;
+  questions: string[];
+  isActive: boolean;
+  createdAt: string;
+  closedAt?: string | null;
+  creator: {
+    id: string;
+    email: string;
+  };
+}
+
+export interface CampaignSurveyResponse {
+  id: string;
+  surveyId: string;
+  answers: string[];
+  createdAt: string;
+  respondent: {
+    id: string;
+    email: string;
+  };
+}
+
+export async function createCampaignSurvey(
+  token: string,
+  campaignId: string,
+  title: string,
+  questions: string[]
+) {
+  return fetchGraphQL<{ createCampaignSurvey: CampaignSurvey }>(
+    `
+      mutation CreateCampaignSurvey($input: CreateCampaignSurveyInput!) {
+        createCampaignSurvey(input: $input) {
+          id
+          campaignId
+          title
+          questions
+          isActive
+          createdAt
+        }
+      }
+    `,
+    { input: { campaignId, title, questions } },
+    token
+  );
+}
+
+export async function getCampaignSurveys(campaignId: string) {
+  return fetchGraphQL<{ campaignSurveys: CampaignSurvey[] }>(
+    `
+      query GetCampaignSurveys($campaignId: String!) {
+        campaignSurveys(campaignId: $campaignId) {
+          id
+          campaignId
+          title
+          questions
+          isActive
+          createdAt
+          closedAt
+        }
+      }
+    `,
+    { campaignId }
+  );
+}
+
+export async function getSurveyById(surveyId: string) {
+  return fetchGraphQL<{ campaignSurvey: CampaignSurvey }>(
+    `
+      query GetSurveyById($surveyId: String!) {
+        campaignSurvey(surveyId: $surveyId) {
+          id
+          campaignId
+          title
+          questions
+          isActive
+          createdAt
+          closedAt
+        }
+      }
+    `,
+    { surveyId }
+  );
+}
+
+export async function submitSurveyResponse(token: string, surveyId: string, answers: string[]) {
+  return fetchGraphQL<{ submitSurveyResponse: CampaignSurveyResponse }>(
+    `
+      mutation SubmitSurveyResponse($input: SubmitSurveyResponseInput!) {
+        submitSurveyResponse(input: $input) {
+          id
+          surveyId
+          answers
+          createdAt
+        }
+      }
+    `,
+    { input: { surveyId, answers } },
+    token
+  );
+}
+
+export async function getSurveyResponses(token: string, surveyId: string) {
+  return fetchGraphQL<{ surveyResponses: CampaignSurveyResponse[] }>(
+    `
+      query GetSurveyResponses($surveyId: String!) {
+        surveyResponses(surveyId: $surveyId) {
+          id
+          answers
+          createdAt
+          respondent {
+            id
+            email
+          }
+        }
+      }
+    `,
+    { surveyId },
+    token
+  );
+}
+
+export async function hasUserRespondedToSurvey(token: string, surveyId: string) {
+  return fetchGraphQL<{ hasUserRespondedToSurvey: boolean }>(
+    `
+      query HasUserRespondedToSurvey($surveyId: String!) {
+        hasUserRespondedToSurvey(surveyId: $surveyId)
+      }
+    `,
+    { surveyId },
+    token
+  );
+}
+
+export async function closeSurvey(token: string, surveyId: string) {
+  return fetchGraphQL<{ closeSurvey: CampaignSurvey }>(
+    `
+      mutation CloseSurvey($surveyId: String!) {
+        closeSurvey(surveyId: $surveyId) {
+          id
+          isActive
+          closedAt
+        }
+      }
+    `,
+    { surveyId },
+    token
+  );
+}
+
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -607,3 +776,118 @@ export function formatCurrency(amount: number): string {
     maximumFractionDigits: 0,
   }).format(amount);
 }
+
+// Notification types and functions
+export type NotificationType = 'info' | 'warning' | 'error' | 'success';
+export type NotificationStatus = 'unread' | 'read' | 'archived';
+
+export interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: NotificationType;
+  status: NotificationStatus;
+  userId: string;
+  actionUrl?: string | null;
+  metadata?: Record<string, string | number | boolean> | null;
+  createdAt: string;
+  updatedAt: string;
+  readAt?: string | null;
+}
+
+export interface NotificationCount {
+  total: number;
+  unread: number;
+}
+
+export async function getMyNotifications(token: string) {
+  return fetchGraphQL<{ getMyNotifications: Notification[] }>(
+    `
+      query GetMyNotifications {
+        getMyNotifications {
+          id
+          title
+          message
+          type
+          status
+          userId
+          actionUrl
+          metadata
+          createdAt
+          updatedAt
+          readAt
+        }
+      }
+    `,
+    {},
+    token
+  );
+}
+
+export async function getMyUnreadNotifications(token: string) {
+  return fetchGraphQL<{ getMyUnreadNotifications: Notification[] }>(
+    `
+      query GetMyUnreadNotifications {
+        getMyUnreadNotifications {
+          id
+          title
+          message
+          type
+          status
+          userId
+          actionUrl
+          metadata
+          createdAt
+          updatedAt
+          readAt
+        }
+      }
+    `,
+    {},
+    token
+  );
+}
+
+export async function getNotificationCount(token: string) {
+  return fetchGraphQL<{ getNotificationCount: NotificationCount }>(
+    `
+      query GetNotificationCount {
+        getNotificationCount {
+          total
+          unread
+        }
+      }
+    `,
+    {},
+    token
+  );
+}
+
+export async function markNotificationAsRead(token: string, notificationId: string) {
+  return fetchGraphQL<{ markNotificationAsRead: Notification }>(
+    `
+      mutation MarkNotificationAsRead($notificationId: String!) {
+        markNotificationAsRead(notificationId: $notificationId) {
+          id
+          status
+          readAt
+        }
+      }
+    `,
+    { notificationId },
+    token
+  );
+}
+
+export async function deleteNotification(token: string, id: string) {
+  return fetchGraphQL<{ deleteNotification: boolean }>(
+    `
+      mutation DeleteNotification($id: String!) {
+        deleteNotification(id: $id)
+      }
+    `,
+    { id },
+    token
+  );
+}
+

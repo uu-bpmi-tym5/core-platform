@@ -26,6 +26,7 @@ import {
   BarChart3,
   MessageSquare,
   RefreshCw,
+  ClipboardList,
 } from 'lucide-react';
 import {
   getCampaignById,
@@ -35,7 +36,13 @@ import {
   Campaign,
   CampaignContribution,
   CampaignContributionStats,
+  getCampaignSurveys,
+  getSurveyResponses,
+  closeSurvey,
+  CampaignSurvey,
+  CampaignSurveyResponse,
 } from '@/lib/graphql';
+import { CreateSurveyDialog } from '@/components/create-survey-dialog';
 
 type CampaignStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'DELETED';
 
@@ -93,6 +100,9 @@ export default function CreatorCampaignDetailPage() {
   const [campaign, setCampaign] = React.useState<Campaign | null>(null);
   const [contributions, setContributions] = React.useState<CampaignContribution[]>([]);
   const [stats, setStats] = React.useState<CampaignContributionStats | null>(null);
+  const [surveys, setSurveys] = React.useState<CampaignSurvey[]>([]);
+  const [selectedSurvey, setSelectedSurvey] = React.useState<string | null>(null);
+  const [surveyResponses, setSurveyResponses] = React.useState<CampaignSurveyResponse[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -124,15 +134,17 @@ export default function CreatorCampaignDetailPage() {
       setLoading(true);
       setError(null);
 
-      const [campaignRes, contributionsRes, statsRes] = await Promise.all([
+      const [campaignRes, contributionsRes, statsRes, surveysRes] = await Promise.all([
         getCampaignById(campaignId),
         getCampaignContributions(authToken, campaignId),
         getCampaignContributionStats(authToken, campaignId),
+        getCampaignSurveys(campaignId),
       ]);
 
       setCampaign(campaignRes.campaign);
       setContributions(contributionsRes.campaignContributions);
       setStats(statsRes.campaignContributionStats);
+      setSurveys(surveysRes.campaignSurveys);
 
       // Initialize edit form
       setEditForm({
@@ -194,6 +206,29 @@ export default function CreatorCampaignDetailPage() {
     }
     setIsEditing(false);
     setSaveError(null);
+  }
+
+  async function handleLoadSurveyResponses(surveyId: string) {
+    if (!authToken) return;
+
+    try {
+      const result = await getSurveyResponses(authToken, surveyId);
+      setSurveyResponses(result.surveyResponses);
+      setSelectedSurvey(surveyId);
+    } catch (e) {
+      console.error('Failed to load survey responses:', e);
+    }
+  }
+
+  async function handleCloseSurvey(surveyId: string) {
+    if (!authToken) return;
+
+    try {
+      await closeSurvey(authToken, surveyId);
+      await loadData();
+    } catch (e) {
+      console.error('Failed to close survey:', e);
+    }
   }
 
   if (loading) {
@@ -398,6 +433,10 @@ export default function CreatorCampaignDetailPage() {
               <Edit className="h-4 w-4" />
               Campaign Details
             </TabsTrigger>
+            <TabsTrigger value="surveys" className="gap-2">
+              <ClipboardList className="h-4 w-4" />
+              Surveys
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="contributions">
@@ -567,6 +606,132 @@ export default function CreatorCampaignDetailPage() {
                       {campaign.status === 'APPROVED' && ' Your campaign is live!'}
                       {campaign.status === 'SUBMITTED' && ' Your campaign is pending review.'}
                     </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="surveys">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <ClipboardList className="h-5 w-5" />
+                      Backer Surveys
+                    </CardTitle>
+                    <CardDescription>
+                      Collect feedback from your backers
+                    </CardDescription>
+                  </div>
+                  {authToken && stats && stats.contributorsCount > 0 && (
+                    <CreateSurveyDialog
+                      campaignId={campaignId}
+                      authToken={authToken}
+                      onSurveyCreated={loadData}
+                    />
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {surveys.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                      <ClipboardList className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <h3 className="font-semibold mb-1">No surveys yet</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {stats && stats.contributorsCount > 0
+                        ? 'Create a survey to gather feedback from your backers.'
+                        : 'You need backers before you can create surveys.'}
+                    </p>
+                    {authToken && stats && stats.contributorsCount > 0 && (
+                      <CreateSurveyDialog
+                        campaignId={campaignId}
+                        authToken={authToken}
+                        onSurveyCreated={loadData}
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {surveys.map((survey) => (
+                      <Card key={survey.id}>
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <CardTitle className="text-lg">{survey.title}</CardTitle>
+                              <CardDescription>
+                                Created {formatDate(survey.createdAt)} • {survey.questions.length} question
+                                {survey.questions.length !== 1 ? 's' : ''}
+                              </CardDescription>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={survey.isActive ? 'default' : 'secondary'}>
+                                {survey.isActive ? 'Active' : 'Closed'}
+                              </Badge>
+                              {survey.isActive && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleCloseSurvey(survey.id)}
+                                >
+                                  Close Survey
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            <div>
+                              <h4 className="font-medium text-sm mb-2">Questions:</h4>
+                              <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
+                                {survey.questions.map((question, idx) => (
+                                  <li key={idx}>{question}</li>
+                                ))}
+                              </ol>
+                            </div>
+                            <div className="flex items-center justify-between pt-2 border-t">
+                              <Button
+                                variant="outline"
+                                onClick={() => handleLoadSurveyResponses(survey.id)}
+                              >
+                                View Responses
+                              </Button>
+                            </div>
+                            {selectedSurvey === survey.id && surveyResponses.length > 0 && (
+                              <div className="mt-4 space-y-3">
+                                <h4 className="font-medium">Responses ({surveyResponses.length}):</h4>
+                                {surveyResponses.map((response) => (
+                                  <Card key={response.id}>
+                                    <CardContent className="pt-4">
+                                      <p className="text-xs text-muted-foreground mb-3">
+                                        {formatDateTime(response.createdAt)}
+                                      </p>
+                                      <div className="space-y-2">
+                                        {response.answers.map((answer, idx) => (
+                                          <div key={idx}>
+                                            <p className="text-sm font-medium">{survey.questions[idx]}</p>
+                                            <p className="text-sm text-muted-foreground pl-4">{answer}</p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                ))}
+                              </div>
+                            )}
+                            {selectedSurvey === survey.id && surveyResponses.length === 0 && (
+                              <p className="text-sm text-muted-foreground text-center py-4">
+                                No responses yet.
+                              </p>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
                   </div>
                 )}
               </CardContent>

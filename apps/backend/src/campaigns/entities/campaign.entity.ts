@@ -54,6 +54,10 @@ export class Campaign {
   @Field(() => String, { nullable: true, description: 'Base64 encoded image data' })
   imageData?: string;
 
+  @Column({ type: 'timestamp', nullable: true })
+  @Field(() => Date, { nullable: true, description: 'Campaign end date' })
+  endDate?: Date;
+
   @Column({
     type: 'enum',
     enum: CampaignStatus,
