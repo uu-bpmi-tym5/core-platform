@@ -15,6 +15,9 @@ export class CreateCampaignInput {
   @Field(() => String)
   category: string;
 
+  @Field(() => String, { nullable: true })
+  imageData?: string;
+
   @Field(() => CampaignStatus, { nullable: true })
   status?: CampaignStatus;
 }

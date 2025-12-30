@@ -50,6 +50,10 @@ export class Campaign {
   @Field(() => String, { description: 'Category of the campaign' })
   category: string;
 
+  @Column('text', { nullable: true })
+  @Field(() => String, { nullable: true, description: 'Base64 encoded image data' })
+  imageData?: string;
+
   @Column({
     type: 'enum',
     enum: CampaignStatus,

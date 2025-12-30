@@ -58,6 +58,9 @@ export interface Campaign {
   currentAmount: number;
   category: string;
   status: string;
+  imageData?: string | null;
+  imageData?: string | null;
+  imageData?: string | null;
   createdAt: string;
   updatedAt: string;
   creator?: {
@@ -198,6 +201,7 @@ export async function getPublicProfileBySlug(slug: string) {
             description
             goal
             currentAmount
+            imageData
             category
             status
             createdAt
@@ -301,6 +305,7 @@ export async function getPublicCampaigns() {
           currentAmount
           category
           status
+          imageData
           createdAt
           updatedAt
           creator {
@@ -324,6 +329,7 @@ export async function getPendingCampaigns(token: string) {
           description
           goal
           currentAmount
+          imageData
           category
           status
           createdAt
@@ -380,10 +386,13 @@ export async function getCampaignById(campaignId: string) {
           id
           name
           description
+          imageData
           goal
           currentAmount
+          imageData
           category
           status
+          imageData
           createdAt
           updatedAt
           creator {

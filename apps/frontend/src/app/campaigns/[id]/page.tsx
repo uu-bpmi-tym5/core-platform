@@ -90,10 +90,20 @@ export default function CampaignDetailPage() {
               <p className="text-lg text-muted-foreground">{campaign.description}</p>
             </div>
 
-            {/* Campaign Image Placeholder */}
-            <div className="aspect-video w-full rounded-xl bg-muted/50 flex items-center justify-center text-muted-foreground">
-              Campaign Image Placeholder
-            </div>
+            {/* Campaign Image */}
+            {campaign.imageData ? (
+              <div className="aspect-video w-full rounded-xl overflow-hidden">
+                <img
+                  src={campaign.imageData}
+                  alt={campaign.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : (
+              <div className="aspect-video w-full rounded-xl bg-muted/50 flex items-center justify-center text-muted-foreground">
+                No Image Available
+              </div>
+            )}
 
             {/* Comments Section */}
             <div className="pt-8 border-t">

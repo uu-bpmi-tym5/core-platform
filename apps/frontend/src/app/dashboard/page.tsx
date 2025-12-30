@@ -41,6 +41,7 @@ interface Campaign {
   goal: number;
   currentAmount: number;
   status: CampaignStatus;
+  imageData?: string | null;
   createdAt: string;
   updatedAt: string;
   creatorId: string;
@@ -56,6 +57,7 @@ interface CampaignFormData {
   description: string;
   goal: string;
   category: string;
+  imageData?: string;
 }
 
 interface ReadinessItem {
@@ -187,6 +189,7 @@ export default function CampaignManagementDashboard() {
             description
             goal
             currentAmount
+            imageData
             category
             status
             createdAt
@@ -242,6 +245,7 @@ export default function CampaignManagementDashboard() {
             currentAmount
             category
             status
+            imageData
             createdAt
             updatedAt
             creatorId
@@ -254,6 +258,7 @@ export default function CampaignManagementDashboard() {
             description: campaignForm.description,
             goal: parseFloat(campaignForm.goal),
             category: campaignForm.category,
+            imageData: campaignForm.imageData,
           },
         },
       );
@@ -336,6 +341,7 @@ export default function CampaignManagementDashboard() {
       description: campaign.description,
       goal: campaign.goal.toString(),
       category: campaign.category,
+      imageData: campaign.imageData || undefined,
     });
   };
 
@@ -355,6 +361,7 @@ export default function CampaignManagementDashboard() {
             currentAmount
             category
             status
+            imageData
             createdAt
             updatedAt
             creatorId
@@ -368,6 +375,7 @@ export default function CampaignManagementDashboard() {
             description: editForm.description,
             goal: parseFloat(editForm.goal),
             category: editForm.category,
+            imageData: editForm.imageData,
           },
         }
       );
@@ -592,6 +600,34 @@ export default function CampaignManagementDashboard() {
                     </div>
                   </div>
 
+                  <div className="space-y-2">
+                    <Label htmlFor="image">Campaign Image</Label>
+                    <Input
+                      id="image"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setCampaignForm({ ...campaignForm, imageData: reader.result as string });
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                    {campaignForm.imageData && (
+                      <div className="mt-2">
+                        <img
+                          src={campaignForm.imageData}
+                          alt="Preview"
+                          className="h-32 w-auto rounded-md object-cover"
+                        />
+                      </div>
+                    )}
+                  </div>
+
                   {formError && (
                     <div className="rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-700">
                       {formError}
@@ -793,6 +829,33 @@ export default function CampaignManagementDashboard() {
                       required
                     />
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-image">Campaign Image</Label>
+                  <Input
+                    id="edit-image"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setEditForm({ ...editForm, imageData: reader.result as string });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                  {editForm.imageData && (
+                    <div className="mt-2">
+                      <img
+                        src={editForm.imageData}
+                        alt="Preview"
+                        className="h-32 w-auto rounded-md object-cover"
+                      />
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2 justify-end pt-4">
                   <Button type="button" variant="outline" onClick={() => setEditingCampaign(null)}>

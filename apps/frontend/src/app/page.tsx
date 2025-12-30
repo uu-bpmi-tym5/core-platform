@@ -141,12 +141,20 @@ export default function FeedPage() {
                 >
                   {/* Campaign Image/Preview - Full width at top */}
                   <div
-                    className="relative aspect-[3/1] bg-gradient-to-br from-primary/15 via-primary/5 to-secondary/20 cursor-pointer"
+                    className="relative aspect-[3/1] bg-gradient-to-br from-primary/15 via-primary/5 to-secondary/20 cursor-pointer overflow-hidden"
                     onClick={() => router.push(campaignUrl)}
                   >
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Target className="h-8 w-8 text-primary/30" />
-                    </div>
+                    {campaign.imageData ? (
+                      <img
+                        src={campaign.imageData}
+                        alt={campaign.name}
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Target className="h-8 w-8 text-primary/30" />
+                      </div>
+                    )}
                     {isOwn && (
                       <div className="absolute top-3 left-3">
                         <Badge className="bg-primary text-primary-foreground text-xs">
