@@ -25,9 +25,17 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { getPendingCampaigns, approveCampaign, rejectCampaign, Campaign } from '@/lib/graphql';
-import { Shield, CheckCircle, XCircle, Clock, AlertCircle, Users, FileCheck, History } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, Clock, AlertCircle, Users, FileCheck, History, ShieldCheck } from 'lucide-react';
 import { AuditLogTable } from './audit-log-table';
+import { ComplianceChecker } from './compliance-checker';
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat('en-US', {
@@ -58,6 +66,10 @@ export function AdminDashboard({ authToken }: AdminDashboardProps) {
   const [error, setError] = React.useState<string | null>(null);
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
+
+  // Campaign review dialog state
+  const [selectedCampaign, setSelectedCampaign] = React.useState<Campaign | null>(null);
+  const [canApproveSelected, setCanApproveSelected] = React.useState(false);
 
   const loadPendingCampaigns = React.useCallback(async () => {
     try {
@@ -264,12 +276,14 @@ export function AdminDashboard({ authToken }: AdminDashboardProps) {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="gap-1.5 text-green-600 border-green-200 hover:bg-green-50 hover:text-green-700 hover:border-green-300"
-                            onClick={() => handleApprove(campaign.id, campaign.name)}
-                            disabled={actionLoading === campaign.id}
+                            className="gap-1.5"
+                            onClick={() => {
+                              setSelectedCampaign(campaign);
+                              setCanApproveSelected(false);
+                            }}
                           >
-                            <CheckCircle className="h-3.5 w-3.5" />
-                            Approve
+                            <ShieldCheck className="h-3.5 w-3.5" />
+                            Review
                           </Button>
                           <Button
                             size="sm"
@@ -303,6 +317,80 @@ export function AdminDashboard({ authToken }: AdminDashboardProps) {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Campaign Review Dialog */}
+      <Dialog open={!!selectedCampaign} onOpenChange={() => setSelectedCampaign(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" />
+              Review Campaign
+            </DialogTitle>
+            <DialogDescription>
+              Run compliance checks and review campaign details before approval.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedCampaign && (
+            <div className="space-y-6">
+              {/* Campaign Info */}
+              <Card className="border-border">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">{selectedCampaign.name}</CardTitle>
+                  <CardDescription className="flex items-center gap-4">
+                    <span>by {selectedCampaign.creator?.email ?? 'Unknown'}</span>
+                    <Badge variant="secondary">{selectedCampaign.category}</Badge>
+                    <span>{formatCurrency(selectedCampaign.goal)} goal</span>
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">{selectedCampaign.description}</p>
+                </CardContent>
+              </Card>
+
+              {/* Compliance Checker */}
+              <ComplianceChecker
+                authToken={authToken}
+                campaignId={selectedCampaign.id}
+                campaignName={selectedCampaign.name}
+                isAdmin={true}
+                onApprovalStatusChange={setCanApproveSelected}
+              />
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t">
+                <Button variant="outline" onClick={() => setSelectedCampaign(null)}>
+                  Close
+                </Button>
+                <Button
+                  variant="outline"
+                  className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                  onClick={() => {
+                    handleReject(selectedCampaign.id, selectedCampaign.name);
+                    setSelectedCampaign(null);
+                  }}
+                  disabled={actionLoading === selectedCampaign.id}
+                >
+                  <XCircle className="h-4 w-4" />
+                  Reject
+                </Button>
+                <Button
+                  className="gap-1.5"
+                  onClick={() => {
+                    handleApprove(selectedCampaign.id, selectedCampaign.name);
+                    setSelectedCampaign(null);
+                  }}
+                  disabled={actionLoading === selectedCampaign.id || !canApproveSelected}
+                  title={!canApproveSelected ? 'Run compliance checks first' : undefined}
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  Approve Campaign
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

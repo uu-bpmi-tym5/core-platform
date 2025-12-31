@@ -5,6 +5,7 @@ import { CampaignFeedbackResolver } from './campaign-feedback.resolver';
 import { CampaignStatsResolver } from './campaign-stats.resolver';
 import { CampaignExportService } from './campaign-export.service';
 import { CampaignExportController } from './campaign-export.controller';
+import { ComplianceService, ComplianceResolver } from './compliance';
 import { campaignProviders } from './campaign.providers';
 import { DatabaseModule } from '../database/database.module';
 import { AuthModule } from '../auth/auth.module';
@@ -19,8 +20,10 @@ import { NotificationsModule } from '../notifications/notifications.module';
     CampaignFeedbackResolver,
     CampaignStatsResolver,
     CampaignExportService,
+    ComplianceService,
+    ComplianceResolver,
     ...campaignProviders
   ],
-  exports: [CampaignsService, ...campaignProviders],
+  exports: [CampaignsService, ComplianceService, ...campaignProviders],
 })
 export class CampaignsModule {}

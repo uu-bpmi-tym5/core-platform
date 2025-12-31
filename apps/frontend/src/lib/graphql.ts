@@ -1081,7 +1081,6 @@ export async function getAuditLogsForEntity(
           }
           action
           description
-          result
           oldValues
           newValues
         }
@@ -1091,3 +1090,222 @@ export async function getAuditLogsForEntity(
     token
   );
 }
+
+// ============= Compliance Types =============
+
+export type ComplianceRuleSeverity = 'BLOCKER' | 'WARNING' | 'INFO';
+export type ComplianceCheckStatus = 'PASS' | 'FAIL' | 'WARN' | 'SKIPPED';
+export type ComplianceRuleCategory = 'CONTENT' | 'FINANCIAL' | 'MEDIA' | 'LEGAL' | 'IDENTITY';
+
+export interface ComplianceCheckResult {
+  id: string;
+  campaignId: string;
+  runId: string;
+  ruleId: string;
+  ruleName: string;
+  ruleCategory: ComplianceRuleCategory;
+  ruleSeverity: ComplianceRuleSeverity;
+  status: ComplianceCheckStatus;
+  message: string;
+  evidence?: string | null;
+  moderatorNote?: string | null;
+  checkedById?: string | null;
+  checkedBy?: { id: string; name: string; email: string } | null;
+  createdAt: string;
+}
+
+export interface ComplianceRun {
+  id: string;
+  campaignId: string;
+  totalChecks: number;
+  passedChecks: number;
+  failedChecks: number;
+  warningChecks: number;
+  blockerCount: number;
+  canApprove: boolean;
+  isOverridden: boolean;
+  overrideReason?: string | null;
+  overriddenById?: string | null;
+  overriddenBy?: { id: string; name: string; email: string } | null;
+  runById?: string | null;
+  runBy?: { id: string; name: string; email: string } | null;
+  createdAt: string;
+  results?: ComplianceCheckResult[];
+}
+
+export interface ComplianceRuleDefinition {
+  id: string;
+  name: string;
+  description: string;
+  category: ComplianceRuleCategory;
+  severity: ComplianceRuleSeverity;
+}
+
+export interface CampaignApprovalStatus {
+  canApprove: boolean;
+  reason: string;
+  latestRun?: ComplianceRun | null;
+}
+
+// ============= Compliance Functions =============
+
+export async function runComplianceChecks(token: string, campaignId: string) {
+  return fetchGraphQL<{ runComplianceChecks: ComplianceRun }>(
+    `
+      mutation RunComplianceChecks($campaignId: String!) {
+        runComplianceChecks(campaignId: $campaignId) {
+          id
+          campaignId
+          totalChecks
+          passedChecks
+          failedChecks
+          warningChecks
+          blockerCount
+          canApprove
+          isOverridden
+          createdAt
+          runBy {
+            id
+            name
+            email
+          }
+          results {
+            id
+            ruleId
+            ruleName
+            ruleCategory
+            ruleSeverity
+            status
+            message
+            evidence
+            moderatorNote
+          }
+        }
+      }
+    `,
+    { campaignId },
+    token
+  );
+}
+
+export async function getLatestComplianceRun(token: string, campaignId: string) {
+  return fetchGraphQL<{ latestComplianceRun: ComplianceRun | null }>(
+    `
+      query GetLatestComplianceRun($campaignId: String!) {
+        latestComplianceRun(campaignId: $campaignId) {
+          id
+          campaignId
+          totalChecks
+          passedChecks
+          failedChecks
+          warningChecks
+          blockerCount
+          canApprove
+          isOverridden
+          overrideReason
+          createdAt
+          runBy {
+            id
+            name
+            email
+          }
+          overriddenBy {
+            id
+            name
+            email
+          }
+          results {
+            id
+            ruleId
+            ruleName
+            ruleCategory
+            ruleSeverity
+            status
+            message
+            evidence
+            moderatorNote
+          }
+        }
+      }
+    `,
+    { campaignId },
+    token
+  );
+}
+
+export async function getCampaignApprovalStatus(token: string, campaignId: string) {
+  return fetchGraphQL<{ campaignApprovalStatus: CampaignApprovalStatus }>(
+    `
+      query GetCampaignApprovalStatus($campaignId: String!) {
+        campaignApprovalStatus(campaignId: $campaignId) {
+          canApprove
+          reason
+          latestRun {
+            id
+            blockerCount
+            isOverridden
+          }
+        }
+      }
+    `,
+    { campaignId },
+    token
+  );
+}
+
+export async function overrideComplianceBlockers(token: string, runId: string, reason: string) {
+  return fetchGraphQL<{ overrideComplianceBlockers: ComplianceRun }>(
+    `
+      mutation OverrideComplianceBlockers($runId: String!, $reason: String!) {
+        overrideComplianceBlockers(runId: $runId, reason: $reason) {
+          id
+          canApprove
+          isOverridden
+          overrideReason
+          overriddenBy {
+            id
+            name
+            email
+          }
+        }
+      }
+    `,
+    { runId, reason },
+    token
+  );
+}
+
+export async function addComplianceNote(token: string, checkResultId: string, note: string) {
+  return fetchGraphQL<{ addComplianceNote: ComplianceCheckResult }>(
+    `
+      mutation AddComplianceNote($checkResultId: String!, $note: String!) {
+        addComplianceNote(checkResultId: $checkResultId, note: $note) {
+          id
+          moderatorNote
+          checkedById
+        }
+      }
+    `,
+    { checkResultId, note },
+    token
+  );
+}
+
+export async function getComplianceRules(token: string) {
+  return fetchGraphQL<{ complianceRules: ComplianceRuleDefinition[] }>(
+    `
+      query GetComplianceRules {
+        complianceRules {
+          id
+          name
+          description
+          category
+          severity
+        }
+      }
+    `,
+    {},
+    token
+  );
+}
+

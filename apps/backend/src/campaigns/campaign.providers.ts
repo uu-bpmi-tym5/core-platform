@@ -8,6 +8,8 @@ import {
   CommentReport,
   CampaignSurvey,
   CampaignSurveyResponse,
+  ComplianceCheckResult,
+  ComplianceRun,
 } from './entities';
 
 export const campaignProviders = [
@@ -49,6 +51,16 @@ export const campaignProviders = [
     {
         provide: 'CAMPAIGN_SURVEY_RESPONSE_REPOSITORY',
         useFactory: (dataSource: DataSource) => dataSource.getRepository(CampaignSurveyResponse),
+        inject: ['DATA_SOURCE'],
+    },
+    {
+        provide: 'COMPLIANCE_CHECK_RESULT_REPOSITORY',
+        useFactory: (dataSource: DataSource) => dataSource.getRepository(ComplianceCheckResult),
+        inject: ['DATA_SOURCE'],
+    },
+    {
+        provide: 'COMPLIANCE_RUN_REPOSITORY',
+        useFactory: (dataSource: DataSource) => dataSource.getRepository(ComplianceRun),
         inject: ['DATA_SOURCE'],
     },
 ];

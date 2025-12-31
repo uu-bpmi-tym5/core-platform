@@ -1,4 +1,4 @@
-import {Inject, Injectable, NotFoundException, BadRequestException} from '@nestjs/common';
+import {Inject, Injectable, NotFoundException, BadRequestException, forwardRef} from '@nestjs/common';
 import {Repository} from 'typeorm';
 import {Campaign, CampaignStatus} from './entities/campaign.entity';
 import {CampaignFeedback} from './entities/campaign-feedback.entity';
@@ -14,6 +14,7 @@ import {ReportCommentInput, ModerateCommentInput, ModerationAction, DeleteMyComm
 import {ForbiddenException} from '@nestjs/common';
 import {CommentReport} from './entities/comment-report.entity';
 import {AuditLogService, AuditAction} from '../audit-log';
+import {ComplianceRun} from './entities/compliance.entity';
 
 //Threshold pro automatické skrytí komentáře po nahlášení
 const AUTO_HIDE_THRESHOLD = 5;
@@ -39,6 +40,8 @@ export class CampaignsService {
     @Inject('CAMPAIGN_SURVEY_RESPONSE_REPOSITORY')
     private surveyResponseRepository: Repository<CampaignSurveyResponse>,
     private auditLogService: AuditLogService,
+    @Inject('COMPLIANCE_RUN_REPOSITORY')
+    private complianceRunRepository: Repository<ComplianceRun>,
   ) {}
 
   async createCampaign(createCampaignInput: CreateCampaignInput, creatorId: string): Promise<Campaign> {
@@ -265,8 +268,30 @@ export class CampaignsService {
     return campaign?.creatorId === userId;
   }
 
-  async approveCampaign(campaignId: string, moderatorId?: string): Promise<Campaign> {
+  async approveCampaign(campaignId: string, moderatorId?: string, skipComplianceCheck: boolean = false): Promise<Campaign> {
     const oldCampaign = await this.findCampaignById(campaignId);
+
+    // Check compliance before approval (unless explicitly skipped by admin)
+    if (!skipComplianceCheck) {
+      const latestRun = await this.complianceRunRepository.findOne({
+        where: { campaignId },
+        order: { createdAt: 'DESC' },
+      });
+
+      if (!latestRun) {
+        throw new BadRequestException(
+          'Cannot approve campaign: No compliance checks have been run. Please run compliance checks first.'
+        );
+      }
+
+      if (!latestRun.canApprove) {
+        throw new BadRequestException(
+          `Cannot approve campaign: ${latestRun.blockerCount} blocker check(s) failed. ` +
+          'Please resolve the issues or request an admin override.'
+        );
+      }
+    }
+
     await this.campaignRepository.update(campaignId, { status: CampaignStatus.APPROVED });
     const campaign = await this.findCampaignById(campaignId);
 
@@ -281,6 +306,7 @@ export class CampaignsService {
         oldValues: { status: oldCampaign.status },
         newValues: { status: CampaignStatus.APPROVED },
         entityOwnerId: campaign.creatorId,
+        metadata: { skipComplianceCheck },
       },
     );
 
