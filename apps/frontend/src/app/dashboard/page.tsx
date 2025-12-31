@@ -26,6 +26,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Edit2 } from 'lucide-react';
 import { AdminDashboard } from '@/components/admin-dashboard';
+import { MyActivityLog } from '@/components/my-activity-log';
 import { useUserRole } from '@/lib/useUserRole';
 
 const GRAPHQL_ENDPOINT = process.env.NEXT_PUBLIC_GRAPHQL_URL ?? 'http://localhost:3030/graphql';
@@ -756,6 +757,13 @@ export default function CampaignManagementDashboard() {
             </Card>
           </div>
         </section>
+
+        {/* My Activity Section */}
+        {authToken && (
+          <section className="mt-8">
+            <MyActivityLog authToken={authToken} />
+          </section>
+        )}
       </div>
 
       {/* Delete Confirmation Dialog */}

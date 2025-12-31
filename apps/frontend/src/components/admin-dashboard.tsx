@@ -19,8 +19,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
 import { getPendingCampaigns, approveCampaign, rejectCampaign, Campaign } from '@/lib/graphql';
-import { Shield, CheckCircle, XCircle, Clock, AlertCircle, Users, FileCheck } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, Clock, AlertCircle, Users, FileCheck, History } from 'lucide-react';
+import { AuditLogTable } from './audit-log-table';
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat('en-US', {
@@ -114,7 +121,7 @@ export function AdminDashboard({ authToken }: AdminDashboardProps) {
             </Badge>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            Review and approve campaign submissions from creators.
+            Manage campaigns, review submissions, and monitor system activity.
           </p>
         </div>
         <Button variant="outline" onClick={() => router.push('/profile')}>
@@ -122,6 +129,21 @@ export function AdminDashboard({ authToken }: AdminDashboardProps) {
         </Button>
       </header>
 
+      {/* Tabs for different admin sections */}
+      <Tabs defaultValue="campaigns" className="space-y-6">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="campaigns" className="gap-2">
+            <FileCheck className="h-4 w-4" />
+            Campaign Review
+          </TabsTrigger>
+          <TabsTrigger value="audit-logs" className="gap-2">
+            <History className="h-4 w-4" />
+            Audit Logs
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Campaign Review Tab */}
+        <TabsContent value="campaigns" className="space-y-6">
       {/* Success Message */}
       {successMessage && (
         <div className="rounded-lg border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-700 flex items-center gap-2">
@@ -269,7 +291,18 @@ export function AdminDashboard({ authToken }: AdminDashboardProps) {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        {/* Audit Logs Tab */}
+        <TabsContent value="audit-logs">
+          <AuditLogTable
+            authToken={authToken}
+            isAdmin={true}
+            title="System Audit Logs"
+            description="View all system activities, changes, and user actions across the platform."
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
-

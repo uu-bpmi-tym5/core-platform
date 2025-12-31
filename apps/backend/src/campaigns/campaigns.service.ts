@@ -13,6 +13,7 @@ import {CommentStatus, } from './entities/comment.entity';
 import {ReportCommentInput, ModerateCommentInput, ModerationAction, DeleteMyCommentInput,} from './dto/moderation.input';
 import {ForbiddenException} from '@nestjs/common';
 import {CommentReport} from './entities/comment-report.entity';
+import {AuditLogService, AuditAction} from '../audit-log';
 
 //Threshold pro automatické skrytí komentáře po nahlášení
 const AUTO_HIDE_THRESHOLD = 5;
@@ -37,6 +38,7 @@ export class CampaignsService {
     private surveyRepository: Repository<CampaignSurvey>,
     @Inject('CAMPAIGN_SURVEY_RESPONSE_REPOSITORY')
     private surveyResponseRepository: Repository<CampaignSurveyResponse>,
+    private auditLogService: AuditLogService,
   ) {}
 
   async createCampaign(createCampaignInput: CreateCampaignInput, creatorId: string): Promise<Campaign> {
@@ -48,6 +50,23 @@ export class CampaignsService {
     const savedCampaign = await this.campaignRepository.save(campaign);
 
     await this.createCampaignStats(savedCampaign.id);
+
+    // Audit log for campaign creation
+    await this.auditLogService.logSuccess(
+      AuditAction.CAMPAIGN_CREATE,
+      'campaign',
+      savedCampaign.id,
+      `Campaign "${savedCampaign.name}" was created`,
+      {
+        actorId: creatorId,
+        newValues: {
+          name: savedCampaign.name,
+          goal: savedCampaign.goal,
+          status: savedCampaign.status,
+        },
+        entityOwnerId: creatorId,
+      },
+    );
 
     // Pošleme notifikaci o vytvoření nové kampaně přes mikroslužbu
     await this.notificationsClient.createSuccessNotification(
@@ -82,10 +101,34 @@ export class CampaignsService {
     return campaign;
   }
 
-  async updateCampaign(id: string, updateCampaignInput: UpdateCampaignInput): Promise<Campaign> {
+  async updateCampaign(id: string, updateCampaignInput: UpdateCampaignInput, actorId?: string): Promise<Campaign> {
     const oldCampaign = await this.findCampaignById(id);
     await this.campaignRepository.update(id, updateCampaignInput);
     const updatedCampaign = await this.findCampaignById(id);
+
+    // Audit log for campaign update
+    await this.auditLogService.logSuccess(
+      AuditAction.CAMPAIGN_UPDATE,
+      'campaign',
+      id,
+      `Campaign "${updatedCampaign.name}" was updated`,
+      {
+        actorId: actorId || oldCampaign.creatorId,
+        oldValues: {
+          name: oldCampaign.name,
+          goal: oldCampaign.goal,
+          status: oldCampaign.status,
+          description: oldCampaign.description,
+        },
+        newValues: {
+          name: updatedCampaign.name,
+          goal: updatedCampaign.goal,
+          status: updatedCampaign.status,
+          description: updatedCampaign.description,
+        },
+        entityOwnerId: updatedCampaign.creatorId,
+      },
+    );
 
     // Notifikace pro změnu statusu
     if (oldCampaign.status !== updatedCampaign.status) {
@@ -115,7 +158,26 @@ export class CampaignsService {
     return updatedCampaign;
   }
 
-  async removeCampaign(id: string): Promise<boolean> {
+  async removeCampaign(id: string, actorId?: string): Promise<boolean> {
+    const campaign = await this.findCampaignById(id);
+
+    // Audit log for campaign deletion
+    await this.auditLogService.logSuccess(
+      AuditAction.CAMPAIGN_DELETE,
+      'campaign',
+      id,
+      `Campaign "${campaign.name}" was deleted`,
+      {
+        actorId: actorId || campaign.creatorId,
+        oldValues: {
+          name: campaign.name,
+          goal: campaign.goal,
+          status: campaign.status,
+        },
+        entityOwnerId: campaign.creatorId,
+      },
+    );
+
     await this.campaignRepository.delete(id);
     return true;
   }
@@ -203,19 +265,70 @@ export class CampaignsService {
     return campaign?.creatorId === userId;
   }
 
-  async approveCampaign(campaignId: string): Promise<Campaign> {
+  async approveCampaign(campaignId: string, moderatorId?: string): Promise<Campaign> {
+    const oldCampaign = await this.findCampaignById(campaignId);
     await this.campaignRepository.update(campaignId, { status: CampaignStatus.APPROVED });
-    return this.findCampaignById(campaignId);
+    const campaign = await this.findCampaignById(campaignId);
+
+    // Audit log for campaign approval
+    await this.auditLogService.logSuccess(
+      AuditAction.CAMPAIGN_APPROVE,
+      'campaign',
+      campaignId,
+      `Campaign "${campaign.name}" was approved`,
+      {
+        actorId: moderatorId,
+        oldValues: { status: oldCampaign.status },
+        newValues: { status: CampaignStatus.APPROVED },
+        entityOwnerId: campaign.creatorId,
+      },
+    );
+
+    return campaign;
   }
 
-  async rejectCampaign(campaignId: string): Promise<Campaign> {
+  async rejectCampaign(campaignId: string, moderatorId?: string): Promise<Campaign> {
+    const oldCampaign = await this.findCampaignById(campaignId);
     await this.campaignRepository.update(campaignId, { status: CampaignStatus.REJECTED });
-    return this.findCampaignById(campaignId);
+    const campaign = await this.findCampaignById(campaignId);
+
+    // Audit log for campaign rejection
+    await this.auditLogService.logSuccess(
+      AuditAction.CAMPAIGN_REJECT,
+      'campaign',
+      campaignId,
+      `Campaign "${campaign.name}" was rejected`,
+      {
+        actorId: moderatorId,
+        oldValues: { status: oldCampaign.status },
+        newValues: { status: CampaignStatus.REJECTED },
+        entityOwnerId: campaign.creatorId,
+      },
+    );
+
+    return campaign;
   }
 
-  async submitCampaign(campaignId: string): Promise<Campaign> {
+  async submitCampaign(campaignId: string, userId?: string): Promise<Campaign> {
+    const oldCampaign = await this.findCampaignById(campaignId);
     await this.campaignRepository.update(campaignId, { status: CampaignStatus.SUBMITTED });
-    return this.findCampaignById(campaignId);
+    const campaign = await this.findCampaignById(campaignId);
+
+    // Audit log for campaign submission
+    await this.auditLogService.logSuccess(
+      AuditAction.CAMPAIGN_SUBMIT,
+      'campaign',
+      campaignId,
+      `Campaign "${campaign.name}" was submitted for review`,
+      {
+        actorId: userId || campaign.creatorId,
+        oldValues: { status: oldCampaign.status },
+        newValues: { status: CampaignStatus.SUBMITTED },
+        entityOwnerId: campaign.creatorId,
+      },
+    );
+
+    return campaign;
   }
 
   async findPendingCampaigns(): Promise<Campaign[]> {
@@ -490,6 +603,8 @@ export class CampaignsService {
       throw new NotFoundException('Comment not found');
     }
 
+    const oldStatus = comment.status;
+
     // Aplikace akce
     switch (input.action) {
       case ModerationAction.HIDE:
@@ -508,7 +623,23 @@ export class CampaignsService {
       comment.moderationReason = input.reason;
     }
 
-    return this.commentRepository.save(comment);
+    const savedComment = await this.commentRepository.save(comment);
+
+    // Audit log for comment moderation
+    await this.auditLogService.logSuccess(
+      AuditAction.COMMENT_MODERATE,
+      'comment',
+      input.commentId,
+      `Comment moderated: ${input.action}`,
+      {
+        actorId: moderatorId,
+        oldValues: { status: oldStatus },
+        newValues: { status: comment.status, moderationReason: input.reason },
+        entityOwnerId: comment.userId,
+      },
+    );
+
+    return savedComment;
   }
 
   async deleteMyComment(userId: string, input: DeleteMyCommentInput): Promise<Comment> {

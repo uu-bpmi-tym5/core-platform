@@ -5,6 +5,7 @@ import PDFDocument from 'pdfkit';
 import { CampaignContribution } from './entities/campaign-contribution.entity';
 import { Campaign } from './entities/campaign.entity';
 import { ExportContributionsDto } from './dto/export-contributions.dto';
+import { AuditLogService, AuditAction } from '../audit-log';
 
 interface ContributionForExport {
   id: string;
@@ -23,6 +24,7 @@ export class CampaignExportService {
     private contributionRepository: Repository<CampaignContribution>,
     @Inject('CAMPAIGN_REPOSITORY')
     private campaignRepository: Repository<Campaign>,
+    private auditLogService: AuditLogService,
   ) {}
 
   async getFilteredContributions(
@@ -187,5 +189,30 @@ export class CampaignExportService {
       }
     });
   }
-}
 
+  /**
+   * Log an export action to the audit log
+   */
+  async logExport(
+    campaignId: string,
+    format: string,
+    actorId: string,
+    contributionCount: number,
+    campaignOwnerId?: string,
+  ): Promise<void> {
+    await this.auditLogService.logSuccess(
+      AuditAction.EXPORT_CONTRIBUTIONS,
+      'campaign',
+      campaignId,
+      `Exported ${contributionCount} contributions in ${format.toUpperCase()} format`,
+      {
+        actorId,
+        metadata: {
+          format,
+          contributionCount,
+        },
+        entityOwnerId: campaignOwnerId,
+      },
+    );
+  }
+}

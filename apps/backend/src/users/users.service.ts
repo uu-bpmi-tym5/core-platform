@@ -8,6 +8,7 @@ import {Session} from "../auth/entities/session.entity";
 import { Role } from '../auth/enums/role.enum';
 import { Profile } from './entities/profile.entity';
 import { ProfileService } from './profile.service';
+import { AuditLogService, AuditAction } from '../audit-log';
 
 
 @Injectable()
@@ -16,6 +17,7 @@ export class UsersService {
     @Inject('AUTH_SERVICE') private readonly authClient: ClientProxy,
     @Inject('USER_REPOSITORY') private readonly userRepository: Repository<User>,
     private readonly profileService: ProfileService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async create(createUserInput: CreateUserInput) {
@@ -30,7 +32,26 @@ export class UsersService {
     );
 
     const user = this.userRepository.create({email, name, password: passwordHash, role});
-    return this.userRepository.save(user);
+    const savedUser = await this.userRepository.save(user);
+
+    // Audit log for user registration
+    await this.auditLogService.logSuccess(
+      AuditAction.USER_REGISTER,
+      'user',
+      savedUser.id,
+      `User "${savedUser.name}" registered with email ${savedUser.email}`,
+      {
+        actorId: savedUser.id,
+        newValues: {
+          email: savedUser.email,
+          name: savedUser.name,
+          role: savedUser.role,
+        },
+        entityOwnerId: savedUser.id,
+      },
+    );
+
+    return savedUser;
   }
 
   async login(email: string, password: string) {
@@ -49,6 +70,19 @@ export class UsersService {
 
     const sessionId = await firstValueFrom(
           this.authClient.send<string>('createSession', user.id)
+    );
+
+    // Log successful login
+    await this.auditLogService.logSuccess(
+      AuditAction.USER_LOGIN,
+      'user',
+      user.id,
+      `User "${user.name}" logged in successfully`,
+      {
+        actorId: user.id,
+        entityOwnerId: user.id,
+        metadata: { sessionId },
+      },
     );
 
     return firstValueFrom(
@@ -82,12 +116,33 @@ export class UsersService {
     return this.userRepository.find();
   }
 
-  async updateUserRole(userId: string, role: Role): Promise<User> {
+  async updateUserRole(userId: string, role: Role, actorId?: string): Promise<User> {
+    const oldUser = await this.findById(userId);
+    if (!oldUser) {
+      throw new Error('User not found');
+    }
+    const oldRole = oldUser.role;
+
     await this.userRepository.update(userId, { role });
     const user = await this.findById(userId);
     if (!user) {
       throw new Error('User not found');
     }
+
+    // Audit log for role change
+    await this.auditLogService.logSuccess(
+      AuditAction.USER_ROLE_CHANGE,
+      'user',
+      userId,
+      `User "${user.name}" role changed from ${oldRole} to ${role}`,
+      {
+        actorId: actorId,
+        oldValues: { role: oldRole },
+        newValues: { role },
+        entityOwnerId: userId,
+      },
+    );
+
     return user;
   }
 

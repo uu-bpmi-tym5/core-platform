@@ -61,7 +61,7 @@ export class CampaignsResolver {
     if (!isOwner && user.role !== Role.ADMIN) {
       throw new ForbiddenException('You can only update your own campaigns');
     }
-    return this.campaignsService.updateCampaign(updateCampaignInput.id, updateCampaignInput);
+    return this.campaignsService.updateCampaign(updateCampaignInput.id, updateCampaignInput, user.userId);
   }
 
   @Mutation(() => Boolean)
@@ -75,7 +75,7 @@ export class CampaignsResolver {
     if (!isOwner && user.role !== Role.ADMIN) {
       throw new ForbiddenException('You can only delete your own campaigns');
     }
-    return this.campaignsService.removeCampaign(id);
+    return this.campaignsService.removeCampaign(id, user.userId);
   }
 
   @Mutation(() => Campaign)
@@ -88,7 +88,7 @@ export class CampaignsResolver {
     if (!isOwner) {
       throw new ForbiddenException('You can only submit your own campaigns');
     }
-    return this.campaignsService.submitCampaign(campaignId);
+    return this.campaignsService.submitCampaign(campaignId, user.userId);
   }
 
   @Mutation(() => Campaign)
@@ -96,8 +96,9 @@ export class CampaignsResolver {
   @RequirePermissions(Permission.APPROVE_CAMPAIGN)
   async approveCampaign(
     @Args('campaignId') campaignId: string,
+    @GetCurrentUser() user: JwtPayload,
   ): Promise<Campaign> {
-    return this.campaignsService.approveCampaign(campaignId);
+    return this.campaignsService.approveCampaign(campaignId, user.userId);
   }
 
   @Mutation(() => Campaign)
@@ -105,8 +106,9 @@ export class CampaignsResolver {
   @RequirePermissions(Permission.REJECT_CAMPAIGN)
   async rejectCampaign(
     @Args('campaignId') campaignId: string,
+    @GetCurrentUser() user: JwtPayload,
   ): Promise<Campaign> {
-    return this.campaignsService.rejectCampaign(campaignId);
+    return this.campaignsService.rejectCampaign(campaignId, user.userId);
   }
 
   @Mutation(() => Campaign)

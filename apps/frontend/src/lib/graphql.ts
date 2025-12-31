@@ -891,3 +891,203 @@ export async function deleteNotification(token: string, id: string) {
   );
 }
 
+// ============= Audit Log Types =============
+
+export type ActorType = 'user' | 'system';
+export type AuditAction =
+  | 'campaign.create'
+  | 'campaign.update'
+  | 'campaign.delete'
+  | 'campaign.submit'
+  | 'campaign.approve'
+  | 'campaign.reject'
+  | 'contribution.create'
+  | 'contribution.refund'
+  | 'wallet.deposit'
+  | 'wallet.withdrawal'
+  | 'user.register'
+  | 'user.login'
+  | 'user.logout'
+  | 'user.update'
+  | 'user.role_change'
+  | 'user.password_change'
+  | 'comment.create'
+  | 'comment.delete'
+  | 'comment.moderate'
+  | 'comment.report'
+  | 'notification.send'
+  | 'export.contributions';
+
+export interface AuditLogActor {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface AuditLog {
+  id: string;
+  createdAt: string;
+  actorType: ActorType;
+  actorId?: string | null;
+  actor?: AuditLogActor | null;
+  action: AuditAction;
+  entityType: string;
+  entityId: string;
+  description: string;
+  oldValues?: Record<string, unknown> | null;
+  newValues?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  entityOwnerId?: string | null;
+}
+
+export interface AuditLogFilter {
+  actorId?: string;
+  entityType?: string;
+  entityId?: string;
+  action?: string;
+  fromDate?: string;
+  toDate?: string;
+}
+
+export interface AuditLogPagination {
+  limit?: number;
+  offset?: number;
+}
+
+// ============= Audit Log Functions =============
+
+export async function getAuditLogs(
+  token: string,
+  filter?: AuditLogFilter,
+  pagination?: AuditLogPagination
+) {
+  return fetchGraphQL<{ auditLogs: AuditLog[] }>(
+    `
+      query GetAuditLogs($filter: AuditLogFilterInput, $pagination: AuditLogPaginationInput) {
+        auditLogs(filter: $filter, pagination: $pagination) {
+          id
+          createdAt
+          actorType
+          actorId
+          actor {
+            id
+            name
+            email
+          }
+          action
+          entityType
+          entityId
+          description
+          oldValues
+          newValues
+          metadata
+          entityOwnerId
+        }
+      }
+    `,
+    { filter, pagination },
+    token
+  );
+}
+
+export async function getAuditLogsCount(token: string, filter?: AuditLogFilter) {
+  return fetchGraphQL<{ auditLogsCount: number }>(
+    `
+      query GetAuditLogsCount($filter: AuditLogFilterInput) {
+        auditLogsCount(filter: $filter)
+      }
+    `,
+    { filter },
+    token
+  );
+}
+
+export async function getAuditLogById(token: string, id: string) {
+  return fetchGraphQL<{ auditLog: AuditLog | null }>(
+    `
+      query GetAuditLog($id: String!) {
+        auditLog(id: $id) {
+          id
+          createdAt
+          actorType
+          actorId
+          actor {
+            id
+            name
+            email
+          }
+          action
+          entityType
+          entityId
+          description
+          oldValues
+          newValues
+          metadata
+          ipAddress
+          userAgent
+          entityOwnerId
+        }
+      }
+    `,
+    { id },
+    token
+  );
+}
+
+export async function getMyAuditLogs(
+  token: string,
+  filter?: AuditLogFilter,
+  pagination?: AuditLogPagination
+) {
+  return fetchGraphQL<{ myAuditLogs: AuditLog[] }>(
+    `
+      query GetMyAuditLogs($filter: AuditLogFilterInput, $pagination: AuditLogPaginationInput) {
+        myAuditLogs(filter: $filter, pagination: $pagination) {
+          id
+          createdAt
+          actorType
+          action
+          entityType
+          entityId
+          description
+        }
+      }
+    `,
+    { filter, pagination },
+    token
+  );
+}
+
+export async function getAuditLogsForEntity(
+  token: string,
+  entityType: string,
+  entityId: string,
+  pagination?: AuditLogPagination
+) {
+  return fetchGraphQL<{ auditLogsForEntity: AuditLog[] }>(
+    `
+      query GetAuditLogsForEntity($entityType: String!, $entityId: String!, $pagination: AuditLogPaginationInput) {
+        auditLogsForEntity(entityType: $entityType, entityId: $entityId, pagination: $pagination) {
+          id
+          createdAt
+          actorType
+          actorId
+          actor {
+            id
+            name
+            email
+          }
+          action
+          description
+          result
+          oldValues
+          newValues
+        }
+      }
+    `,
+    { entityType, entityId, pagination },
+    token
+  );
+}

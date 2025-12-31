@@ -84,8 +84,9 @@ export class UserResolver {
     async updateUserRole(
         @Args('userId') userId: string,
         @Args('role', { type: () => Role }) role: Role,
+        @GetCurrentUser() currentUser: JwtPayload,
     ): Promise<User> {
-        return this.userService.updateUserRole(userId, role);
+        return this.userService.updateUserRole(userId, role, currentUser.userId);
     }
 
     @Query(() => [User])

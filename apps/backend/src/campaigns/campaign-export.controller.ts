@@ -68,6 +68,15 @@ export class CampaignExportController {
       // Get filtered contributions
       const contributions = await this.exportService.getFilteredContributions(query);
 
+      // Log the export action
+      await this.exportService.logExport(
+        campaignId,
+        format,
+        payload.userId,
+        contributions.length,
+        campaign.creatorId,
+      );
+
       // Generate file based on format
       const filename = `contributions-${campaignId}-${Date.now()}`;
 

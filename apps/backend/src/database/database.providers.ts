@@ -7,6 +7,7 @@ import { WalletTX } from '../wallet/entities/wallet-tx.entity';
 import { Profile } from '../users/entities/profile.entity';
 import { CreatorProfile } from '../users/entities/creator-profile.entity';
 import { CommentReport } from '../campaigns/entities/comment-report.entity';
+import { AuditLog } from '../audit-log/entities';
 
 export const databaseProviders = [
   {
@@ -28,6 +29,7 @@ export const databaseProviders = [
         CreatorProfile,
         Comment,
         CommentReport,
+        AuditLog,
       ].filter(Boolean);
 
       const entities = Array.from(new Set([...explicitEntities]));

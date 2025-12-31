@@ -7,6 +7,7 @@ import { CampaignContribution } from '../campaigns/entities/campaign-contributio
 import { ContributeToCampaignInput, BankWithdrawalInput } from './dto';
 import { NotificationsClient } from '../notifications/notifications.client';
 import { PaginationInput, WalletTransactionFilter } from './dto/get-wallet-transactions.input';
+import { AuditLogService, AuditAction } from '../audit-log';
 
 @Injectable()
 export class WalletService {
@@ -20,6 +21,7 @@ export class WalletService {
     @Inject('CAMPAIGN_CONTRIBUTION_REPOSITORY')
     private contributionRepository: Repository<CampaignContribution>,
     private notificationsClient: NotificationsClient,
+    private auditLogService: AuditLogService,
   ) {}
 
   async getUserWalletBalance(userId: string): Promise<number> {
@@ -145,6 +147,23 @@ async getFilteredUserTransactions(
     // Aktualizuj zůstatek uživatele
     await this.userRepository.increment({ id: userId }, 'walletBalance', amount);
 
+    // Audit log for deposit
+    await this.auditLogService.logSuccess(
+      AuditAction.WALLET_DEPOSIT,
+      'wallet_transaction',
+      savedTransaction.id,
+      `Deposit of ${amount} $ completed`,
+      {
+        actorId: userId,
+        newValues: {
+          amount,
+          type: TransactionType.DEPOSIT,
+          status: TransactionStatus.COMPLETED,
+        },
+        entityOwnerId: userId,
+      },
+    );
+
     // Pošli notifikaci
     await this.notificationsClient.createSuccessNotification(
       userId,
@@ -170,6 +189,9 @@ async getFilteredUserTransactions(
     if (currentBalance < amount) {
       throw new BadRequestException('Nedostatečný zůstatek v peněžence');
     }
+
+    // Get campaign info for audit log
+    const campaign = await this.campaignRepository.findOne({ where: { id: campaignId } });
 
     // Vytvoř transakci
     const transaction = this.walletTxRepository.create({
@@ -199,6 +221,24 @@ async getFilteredUserTransactions(
 
     // Aktualizuj currentAmount kampaně
     await this.campaignRepository.increment({ id: campaignId }, 'currentAmount', amount);
+
+    // Audit log for contribution
+    await this.auditLogService.logSuccess(
+      AuditAction.CONTRIBUTION_CREATE,
+      'campaign_contribution',
+      savedContribution.id,
+      `Contribution of ${amount} $ to campaign "${campaign?.name || campaignId}"`,
+      {
+        actorId: contributorId,
+        newValues: {
+          amount,
+          campaignId,
+          message: message ? '[message provided]' : undefined,
+        },
+        entityOwnerId: campaign?.creatorId,
+        metadata: { transactionId: savedTransaction.id },
+      },
+    );
 
     // Pošli notifikaci přispěvateli
     await this.notificationsClient.createSuccessNotification(
@@ -235,6 +275,24 @@ async getFilteredUserTransactions(
     // Odečti ze zůstatku (dočasně, dokud se nevyřídí)
     await this.userRepository.decrement({ id: userId }, 'walletBalance', amount);
 
+    // Audit log for bank withdrawal
+    await this.auditLogService.logSuccess(
+      AuditAction.WALLET_WITHDRAWAL,
+      'wallet_transaction',
+      savedTransaction.id,
+      `Bank withdrawal of ${amount} $ requested`,
+      {
+        actorId: userId,
+        newValues: {
+          amount,
+          type: TransactionType.BANK_WITHDRAWAL,
+          status: TransactionStatus.PENDING,
+          bankAccount: bankAccount ? `***${bankAccount.slice(-4)}` : undefined, // Mask bank account
+        },
+        entityOwnerId: userId,
+      },
+    );
+
     // Pošli notifikaci
     await this.notificationsClient.createInfoNotification(
       userId,
@@ -252,7 +310,7 @@ async getFilteredUserTransactions(
     return transactionWithUser!;
   }
 
-  async refundContribution(contributionId: string, reason: string): Promise<WalletTX> {
+  async refundContribution(contributionId: string, reason: string, actorId?: string): Promise<WalletTX> {
     const contribution = await this.contributionRepository.findOne({
       where: { id: contributionId },
       relations: ['contributor', 'campaign'],
@@ -283,6 +341,21 @@ async getFilteredUserTransactions(
 
     // Označ příspěvek jako vrácený
     await this.contributionRepository.update(contributionId, { isRefunded: true });
+
+    // Audit log for refund
+    await this.auditLogService.logSuccess(
+      AuditAction.CONTRIBUTION_REFUND,
+      'campaign_contribution',
+      contributionId,
+      `Refund of ${contribution.amount} $ for contribution to campaign "${contribution.campaign?.name || contribution.campaignId}"`,
+      {
+        actorId: actorId,
+        oldValues: { isRefunded: false },
+        newValues: { isRefunded: true, refundReason: reason },
+        entityOwnerId: contribution.contributorId,
+        metadata: { refundTransactionId: savedRefund.id },
+      },
+    );
 
     // Pošli notifikaci
     await this.notificationsClient.createInfoNotification(

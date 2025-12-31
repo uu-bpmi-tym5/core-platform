@@ -6,6 +6,7 @@ import { UsersModule } from '../users/users.module';
 import { CampaignsModule } from '../campaigns/campaigns.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { WalletModule } from '../wallet/wallet.module';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { WalletModule } from '../wallet/wallet.module';
       autoSchemaFile: true,
       introspection: true, // Enable introspection for Apollo Sandbox (works with Apollo Server v5)
     }),
+    AuditLogModule,
     AuthModule,
     UsersModule,
     CampaignsModule,
