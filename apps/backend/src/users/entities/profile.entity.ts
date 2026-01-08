@@ -26,8 +26,8 @@ export class Profile {
   displayName: string;
 
 
-  @Column({ type: 'varchar', nullable: true })
-  @Field(() => String, { nullable: true, description: 'Avatar image URL' })
+  @Column({ type: 'text', nullable: true })
+  @Field(() => String, { nullable: true, description: 'Avatar image URL or base64 data' })
   avatarUrl: string | null;
 
   @Column({ type: 'varchar', nullable: true })

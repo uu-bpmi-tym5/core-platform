@@ -26,7 +26,7 @@ export class ProfileService {
     let slug = baseSlug;
     let counter = 1;
     // ensure slug uniqueness
-    // eslint-disable-next-line no-constant-condition
+     
     while (true) {
       const existing = await this.profileRepository.findOne({ where: { slug } });
       if (!existing) {
@@ -73,6 +73,15 @@ export class ProfileService {
 
     Object.assign(creatorProfile, input);
     return this.creatorProfileRepository.save(creatorProfile);
+  }
+
+  async getCreatorProfileByUserId(userId: string): Promise<CreatorProfile | null> {
+    const profile = await this.profileRepository.findOne({ where: { userId } });
+    if (!profile) {
+      return null;
+    }
+
+    return this.creatorProfileRepository.findOne({ where: { profileId: profile.id } });
   }
 
   async getPublicProfileBySlug(slug: string): Promise<{ profile: Profile; creatorProfile: CreatorProfile | null; campaigns: Campaign[] }> {

@@ -1,5 +1,5 @@
 import { InputType, Field } from '@nestjs/graphql';
-import { IsOptional, IsString, Length, Matches, IsUrl, MaxLength } from 'class-validator';
+import { IsOptional, IsString, Length, Matches, MaxLength, ValidateIf, IsUrl } from 'class-validator';
 
 @InputType()
 export class UpdateProfileInput {
@@ -13,8 +13,8 @@ export class UpdateProfileInput {
   @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
+  @ValidateIf((o) => o.avatarUrl && !o.avatarUrl.startsWith('data:image/'))
   @IsUrl()
-  @MaxLength(2048)
   avatarUrl?: string;
 
   @Field(() => String, { nullable: true })

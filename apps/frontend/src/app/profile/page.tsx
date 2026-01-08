@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getMyProfile, getMyCreatorProfile, updateMyProfile, updateMyCreatorProfile, getMyCampaigns } from '@/lib/graphql';
-import { Pencil, Check, X, MapPin, Globe, Hash, LogOut, Shield } from 'lucide-react';
+import { Pencil, Check, X, MapPin, Globe, Hash, LogOut, Shield, Camera, Loader2 } from 'lucide-react';
 import { useUserRole } from '@/lib/useUserRole';
 import { getRoleDisplayName } from '@/lib/roles';
 
@@ -39,6 +39,8 @@ export default function ProfilePage() {
   const [editingField, setEditingField] = React.useState<string | null>(null);
   const [editValue, setEditValue] = React.useState('');
   const [saving, setSaving] = React.useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = React.useState(false);
+  const avatarInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -168,6 +170,65 @@ export default function ProfilePage() {
     }
   };
 
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !authToken) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Image must be smaller than 2MB');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    setError(null);
+
+    try {
+      // Read file as base64
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64 = e.target?.result as string;
+
+        try {
+          const updated = await updateMyProfile(authToken, {
+            avatarUrl: base64,
+          });
+          setProfile(prev => ({
+            ...prev,
+            avatarUrl: updated.updateMyProfile.avatarUrl ?? '',
+          }));
+          setSuccess('Avatar updated successfully');
+          setTimeout(() => setSuccess(null), 3000);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Failed to upload avatar';
+          setError(message);
+        } finally {
+          setUploadingAvatar(false);
+        }
+      };
+      reader.onerror = () => {
+        setError('Failed to read image file');
+        setUploadingAvatar(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to upload avatar';
+      setError(message);
+      setUploadingAvatar(false);
+    }
+
+    // Reset input
+    if (avatarInputRef.current) {
+      avatarInputRef.current.value = '';
+    }
+  };
+
   const handleLogout = () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('authToken');
@@ -245,7 +306,7 @@ export default function ProfilePage() {
           <CardContent className="space-y-6">
             {/* Avatar and Display Name */}
             <div className="flex items-start gap-6">
-              <div className="flex-shrink-0">
+              <div className="relative flex-shrink-0 group">
                 {profile.avatarUrl ? (
                   <img
                     src={profile.avatarUrl}
@@ -257,6 +318,28 @@ export default function ProfilePage() {
                     {profile.displayName.charAt(0).toUpperCase()}
                   </div>
                 )}
+                {/* Upload overlay */}
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarUpload}
+                  className="hidden"
+                  id="avatar-upload"
+                />
+                <label
+                  htmlFor="avatar-upload"
+                  className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                >
+                  {uploadingAvatar ? (
+                    <Loader2 className="h-6 w-6 text-white animate-spin" />
+                  ) : (
+                    <Camera className="h-6 w-6 text-white" />
+                  )}
+                </label>
+                <p className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-xs text-muted-foreground whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                  Click to upload
+                </p>
               </div>
               <div className="flex-1 space-y-4">
                 <EditableField
@@ -271,19 +354,6 @@ export default function ProfilePage() {
                   onEditValueChange={setEditValue}
                   saving={saving}
                   required
-                />
-                <EditableField
-                  label="Avatar URL"
-                  field="avatarUrl"
-                  value={profile.avatarUrl}
-                  editingField={editingField}
-                  editValue={editValue}
-                  onStartEdit={startEdit}
-                  onCancel={cancelEdit}
-                  onSave={saveField}
-                  onEditValueChange={setEditValue}
-                  saving={saving}
-                  placeholder="https://..."
                 />
               </div>
             </div>

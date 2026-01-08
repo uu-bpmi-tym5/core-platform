@@ -111,6 +111,12 @@ export class UserResolver {
         return this.profileService.updateOwnProfile(currentUser.userId, input);
     }
 
+    @Query(() => CreatorProfile, { nullable: true })
+    @UseGuards(JwtAuthGuard)
+    async myCreatorProfile(@GetCurrentUser() currentUser: JwtPayload): Promise<CreatorProfile | null> {
+        return this.profileService.getCreatorProfileByUserId(currentUser.userId);
+    }
+
     @Mutation(() => CreatorProfile)
     @UseGuards(JwtAuthGuard)
     async updateMyCreatorProfile(
