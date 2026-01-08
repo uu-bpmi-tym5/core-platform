@@ -63,7 +63,6 @@ export default function FeedPage() {
       <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-4">
           <h1 className="text-xl font-bold">Discover</h1>
-          <Badge variant="outline" className="text-xs">WIP Feed</Badge>
         </div>
       </div>
 
