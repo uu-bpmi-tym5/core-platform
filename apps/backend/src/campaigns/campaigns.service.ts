@@ -1,4 +1,4 @@
-import {Inject, Injectable, NotFoundException, BadRequestException, forwardRef} from '@nestjs/common';
+import {Inject, Injectable, NotFoundException, BadRequestException} from '@nestjs/common';
 import {Repository} from 'typeorm';
 import {Campaign, CampaignStatus} from './entities/campaign.entity';
 import {CampaignFeedback} from './entities/campaign-feedback.entity';
