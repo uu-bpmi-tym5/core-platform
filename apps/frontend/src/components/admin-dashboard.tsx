@@ -313,7 +313,7 @@ export function AdminDashboard({ authToken }: AdminDashboardProps) {
         </TabsContent>
 
         {/* Comment Moderation Tab */}
-        <TabsContent value="moderation" forceMount className="data-[state=inactive]:hidden">
+        <TabsContent value="moderation" className="data-[state=inactive]:hidden">
           <CommentModerationTable authToken={authToken} />
         </TabsContent>
 
