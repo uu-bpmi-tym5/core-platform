@@ -5,7 +5,6 @@ import { CreateNotificationInput, UpdateNotificationInput, NotificationCount } f
 import { Notification } from './entities';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetCurrentUser } from '../auth/decorators/get-current-user.decorator';
-import { User } from '../users/entities/user.entity';
 import type { JwtPayload } from '../auth/auth.service';
 
 @Resolver(() => Notification)
