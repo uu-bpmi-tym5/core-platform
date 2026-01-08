@@ -6,6 +6,7 @@ import { Notification } from './entities';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetCurrentUser } from '../auth/decorators/get-current-user.decorator';
 import { User } from '../users/entities/user.entity';
+import type { JwtPayload } from '../auth/auth.service';
 
 @Resolver(() => Notification)
 @UseGuards(JwtAuthGuard)
@@ -13,18 +14,18 @@ export class NotificationsResolver {
     constructor(private readonly notificationsService: NotificationsService) {}
 
     @Query(() => [Notification])
-    async getMyNotifications(@GetCurrentUser() user: User): Promise<Notification[]> {
-        return this.notificationsService.getNotificationsByUserId(user.id);
+    async getMyNotifications(@GetCurrentUser() user: JwtPayload): Promise<Notification[]> {
+        return this.notificationsService.getNotificationsByUserId(user.userId);
     }
 
     @Query(() => [Notification])
-    async getMyUnreadNotifications(@GetCurrentUser() user: User): Promise<Notification[]> {
-        return this.notificationsService.getUnreadNotificationsByUserId(user.id);
+    async getMyUnreadNotifications(@GetCurrentUser() user: JwtPayload): Promise<Notification[]> {
+        return this.notificationsService.getUnreadNotificationsByUserId(user.userId);
     }
 
     @Query(() => NotificationCount)
-    async getNotificationCount(@GetCurrentUser() user: User): Promise<NotificationCount> {
-        return this.notificationsService.getNotificationCount(user.id);
+    async getNotificationCount(@GetCurrentUser() user: JwtPayload): Promise<NotificationCount> {
+        return this.notificationsService.getNotificationCount(user.userId);
     }
 
     @Mutation(() => Notification)
