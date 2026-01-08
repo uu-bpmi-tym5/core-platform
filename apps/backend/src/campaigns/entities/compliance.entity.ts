@@ -3,13 +3,10 @@ import { Field, ObjectType, registerEnumType } from '@nestjs/graphql';
 import { Campaign } from './campaign.entity';
 import { User } from '../../users/entities/user.entity';
 
-/**
- * Severity level of a compliance rule
- */
 export enum ComplianceRuleSeverity {
-  BLOCKER = 'BLOCKER',   // Must pass or campaign cannot be approved (unless admin override)
-  WARNING = 'WARNING',   // Should pass, but doesn't block approval
-  INFO = 'INFO',         // Informational check only
+  BLOCKER = 'BLOCKER',
+  WARNING = 'WARNING',
+  INFO = 'INFO',
 }
 
 registerEnumType(ComplianceRuleSeverity, {
@@ -17,9 +14,6 @@ registerEnumType(ComplianceRuleSeverity, {
   description: 'Severity level of a compliance rule',
 });
 
-/**
- * Result status of a compliance check
- */
 export enum ComplianceCheckStatus {
   PASS = 'PASS',
   FAIL = 'FAIL',
@@ -32,15 +26,12 @@ registerEnumType(ComplianceCheckStatus, {
   description: 'Result status of a compliance check',
 });
 
-/**
- * Rule categories for organization
- */
 export enum ComplianceRuleCategory {
-  CONTENT = 'CONTENT',         // Title, description quality
-  FINANCIAL = 'FINANCIAL',     // Goal amount, deadline
-  MEDIA = 'MEDIA',             // Images, attachments
-  LEGAL = 'LEGAL',             // Terms, disclaimers
-  IDENTITY = 'IDENTITY',       // Creator verification
+  CONTENT = 'CONTENT',
+  FINANCIAL = 'FINANCIAL',
+  MEDIA = 'MEDIA',
+  LEGAL = 'LEGAL',
+  IDENTITY = 'IDENTITY',
 }
 
 registerEnumType(ComplianceRuleCategory, {
@@ -48,9 +39,6 @@ registerEnumType(ComplianceRuleCategory, {
   description: 'Category of the compliance rule',
 });
 
-/**
- * Individual compliance check result for a campaign
- */
 @ObjectType()
 @Entity('compliance_check_results')
 @Index(['campaignId', 'ruleId'])
@@ -70,7 +58,7 @@ export class ComplianceCheckResult {
 
   @Field()
   @Column({ name: 'run_id' })
-  runId: string; // Groups checks from the same run
+  runId: string;
 
   @Field()
   @Column({ name: 'rule_id' })
@@ -109,11 +97,11 @@ export class ComplianceCheckResult {
 
   @Field({ nullable: true })
   @Column('text', { nullable: true })
-  evidence?: string; // Details about what was checked
+  evidence?: string;
 
   @Field({ nullable: true })
   @Column('text', { nullable: true, name: 'moderator_note' })
-  moderatorNote?: string; // Note added by moderator
+  moderatorNote?: string;
 
   @Field({ nullable: true })
   @Column({ nullable: true, name: 'checked_by' })
@@ -129,9 +117,6 @@ export class ComplianceCheckResult {
   createdAt: Date;
 }
 
-/**
- * Compliance run summary for a campaign
- */
 @ObjectType()
 @Entity('compliance_runs')
 @Index(['campaignId'])
@@ -166,15 +151,15 @@ export class ComplianceRun {
 
   @Field()
   @Column({ name: 'blocker_count' })
-  blockerCount: number; // Number of failed BLOCKER rules
+  blockerCount: number;
 
   @Field()
   @Column({ name: 'can_approve', default: false })
-  canApprove: boolean; // True if no blockers failed
+  canApprove: boolean;
 
   @Field()
   @Column({ name: 'is_overridden', default: false })
-  isOverridden: boolean; // True if admin overrode blockers
+  isOverridden: boolean;
 
   @Field({ nullable: true })
   @Column('text', { nullable: true, name: 'override_reason' })
@@ -205,4 +190,3 @@ export class ComplianceRun {
   @Field(() => [ComplianceCheckResult], { nullable: true })
   results?: ComplianceCheckResult[];
 }
-

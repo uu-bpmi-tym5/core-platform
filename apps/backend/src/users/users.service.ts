@@ -34,7 +34,6 @@ export class UsersService {
     const user = this.userRepository.create({email, name, password: passwordHash, role});
     const savedUser = await this.userRepository.save(user);
 
-    // Audit log for user registration
     await this.auditLogService.logSuccess(
       AuditAction.USER_REGISTER,
       'user',
@@ -72,7 +71,6 @@ export class UsersService {
           this.authClient.send<string>('createSession', user.id)
     );
 
-    // Log successful login
     await this.auditLogService.logSuccess(
       AuditAction.USER_LOGIN,
       'user',
@@ -129,7 +127,6 @@ export class UsersService {
       throw new Error('User not found');
     }
 
-    // Audit log for role change
     await this.auditLogService.logSuccess(
       AuditAction.USER_ROLE_CHANGE,
       'user',

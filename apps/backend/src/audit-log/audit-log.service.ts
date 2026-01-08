@@ -3,9 +3,6 @@ import { Repository } from 'typeorm';
 import { AuditLog, AuditAction, ActorType } from './entities';
 import { CreateAuditLogInput, AuditLogFilterInput, AuditLogPaginationInput } from './dto';
 
-/**
- * Fields that should be masked in audit logs for security
- */
 const SENSITIVE_FIELDS = [
   'password',
   'passwordHash',
@@ -20,9 +17,6 @@ const SENSITIVE_FIELDS = [
   'ssn',
 ];
 
-/**
- * Masks sensitive fields in an object by replacing their values with '[REDACTED]'
- */
 function maskSensitiveData(data: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
   if (!data) return data;
 
@@ -47,16 +41,10 @@ export class AuditLogService {
     private auditLogRepository: Repository<AuditLog>,
   ) {}
 
-  /**
-   * Create a new audit log entry.
-   * Audit logs are immutable once created.
-   */
   async createLog(input: CreateAuditLogInput): Promise<AuditLog> {
     const auditLog = this.auditLogRepository.create({
       ...input,
-      // Ensure actorType has a default value
       actorType: input.actorType ?? ActorType.USER,
-      // Mask sensitive data before storing
       oldValues: maskSensitiveData(input.oldValues),
       newValues: maskSensitiveData(input.newValues),
       metadata: maskSensitiveData(input.metadata),
@@ -65,9 +53,6 @@ export class AuditLogService {
     return this.auditLogRepository.save(auditLog);
   }
 
-  /**
-   * Convenience method to log an action
-   */
   async logSuccess(
     action: AuditAction,
     entityType: string,
@@ -100,11 +85,6 @@ export class AuditLogService {
     });
   }
 
-
-  /**
-   * Find all audit logs with optional filtering.
-   * For admin use only - returns all logs.
-   */
   async findAll(
     filter?: AuditLogFilterInput,
     pagination?: AuditLogPaginationInput,
@@ -112,12 +92,6 @@ export class AuditLogService {
     return this.findLogsWithFilter(filter, pagination);
   }
 
-  /**
-   * Find audit logs accessible to a specific user.
-   * Regular users can only see logs where:
-   * - They are the actor (actorId matches)
-   * - They are the owner of the affected entity (entityOwnerId matches)
-   */
   async findForUser(
     userId: string,
     filter?: AuditLogFilterInput,
@@ -126,9 +100,6 @@ export class AuditLogService {
     return this.findLogsWithFilter(filter, pagination, userId);
   }
 
-  /**
-   * Find audit logs for a specific entity
-   */
   async findByEntity(
     entityType: string,
     entityId: string,
@@ -137,9 +108,6 @@ export class AuditLogService {
     return this.findLogsWithFilter({ entityType, entityId }, pagination);
   }
 
-  /**
-   * Find audit logs by actor
-   */
   async findByActor(
     actorId: string,
     pagination?: AuditLogPaginationInput,
@@ -147,9 +115,6 @@ export class AuditLogService {
     return this.findLogsWithFilter({ actorId }, pagination);
   }
 
-  /**
-   * Get a single audit log by ID
-   */
   async findById(id: string): Promise<AuditLog | null> {
     return this.auditLogRepository.findOne({
       where: { id },
@@ -157,9 +122,6 @@ export class AuditLogService {
     });
   }
 
-  /**
-   * Internal method to build and execute filtered queries
-   */
   private async findLogsWithFilter(
     filter?: AuditLogFilterInput,
     pagination?: AuditLogPaginationInput,
@@ -168,7 +130,6 @@ export class AuditLogService {
     const limit = pagination?.limit ?? 20;
     const offset = pagination?.offset ?? 0;
 
-    // Validate pagination
     if (limit <= 0) {
       throw new BadRequestException('Limit must be a positive number');
     }
@@ -182,7 +143,6 @@ export class AuditLogService {
     const query = this.auditLogRepository.createQueryBuilder('log');
     query.leftJoinAndSelect('log.actor', 'actor');
 
-    // If restricted to a user, only show logs they can access
     if (restrictToUserId) {
       query.andWhere(
         '(log.actorId = :userId OR log.entityOwnerId = :userId)',
@@ -190,7 +150,6 @@ export class AuditLogService {
       );
     }
 
-    // Apply filters
     if (filter?.actorId) {
       query.andWhere('log.actorId = :actorId', { actorId: filter.actorId });
     }
@@ -215,19 +174,14 @@ export class AuditLogService {
       query.andWhere('log.createdAt <= :toDate', { toDate: filter.toDate });
     }
 
-    // Order by most recent first
     query.orderBy('log.createdAt', 'DESC');
 
-    // Apply pagination
     query.take(limit);
     query.skip(offset);
 
     return query.getMany();
   }
 
-  /**
-   * Get total count of audit logs (for pagination)
-   */
   async countAll(filter?: AuditLogFilterInput, restrictToUserId?: string): Promise<number> {
     const query = this.auditLogRepository.createQueryBuilder('log');
 

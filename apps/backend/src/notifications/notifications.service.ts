@@ -11,17 +11,6 @@ export class NotificationsService {
     ) {}
 
     async createNotification(input: CreateNotificationInput): Promise<Notification> {
-        // Pro teď pouze logujeme do konzole
-        console.log('🔔 Nová notifikace vytvořena:', {
-            title: input.title,
-            message: input.message,
-            type: input.type || NotificationType.INFO,
-            userId: input.userId,
-            actionUrl: input.actionUrl,
-            metadata: input.metadata,
-            timestamp: new Date().toISOString(),
-        });
-
         const notification = this.notificationRepository.create({
             ...input,
             type: input.type || NotificationType.INFO,
@@ -103,7 +92,6 @@ export class NotificationsService {
         return { total, unread };
     }
 
-    // Pomocné metody pro rychlé vytváření specifických typů notifikací
     async createInfoNotification(userId: string, title: string, message: string, actionUrl?: string): Promise<Notification> {
         return this.createNotification({
             userId,

@@ -16,7 +16,6 @@ import {CommentReport} from './entities/comment-report.entity';
 import {AuditLogService, AuditAction} from '../audit-log';
 import {ComplianceRun} from './entities/compliance.entity';
 
-//Threshold pro automatické skrytí komentáře po nahlášení
 const AUTO_HIDE_THRESHOLD = 5;
 
 @Injectable()
@@ -54,7 +53,6 @@ export class CampaignsService {
 
     await this.createCampaignStats(savedCampaign.id);
 
-    // Audit log for campaign creation
     await this.auditLogService.logSuccess(
       AuditAction.CAMPAIGN_CREATE,
       'campaign',
@@ -71,7 +69,6 @@ export class CampaignsService {
       },
     );
 
-    // Pošleme notifikaci o vytvoření nové kampaně přes mikroslužbu
     await this.notificationsClient.createSuccessNotification(
       creatorId,
       'Kampaň byla úspěšně vytvořena',
@@ -109,7 +106,6 @@ export class CampaignsService {
     await this.campaignRepository.update(id, updateCampaignInput);
     const updatedCampaign = await this.findCampaignById(id);
 
-    // Audit log for campaign update
     await this.auditLogService.logSuccess(
       AuditAction.CAMPAIGN_UPDATE,
       'campaign',
@@ -133,12 +129,10 @@ export class CampaignsService {
       },
     );
 
-    // Notifikace pro změnu statusu
     if (oldCampaign.status !== updatedCampaign.status) {
       await this.handleStatusChangeNotification(updatedCampaign, oldCampaign.status);
     }
 
-    // Notifikace pro změnu cíle
     if (oldCampaign.goal !== updatedCampaign.goal) {
       await this.notificationsClient.createInfoNotification(
         updatedCampaign.creatorId,
@@ -148,7 +142,6 @@ export class CampaignsService {
       );
     }
 
-    // Notifikace pro změnu názvu
     if (oldCampaign.name !== updatedCampaign.name) {
       await this.notificationsClient.createInfoNotification(
         updatedCampaign.creatorId,
@@ -164,7 +157,6 @@ export class CampaignsService {
   async removeCampaign(id: string, actorId?: string): Promise<boolean> {
     const campaign = await this.findCampaignById(id);
 
-    // Audit log for campaign deletion
     await this.auditLogService.logSuccess(
       AuditAction.CAMPAIGN_DELETE,
       'campaign',
@@ -271,7 +263,6 @@ export class CampaignsService {
   async approveCampaign(campaignId: string, moderatorId?: string, skipComplianceCheck: boolean = false): Promise<Campaign> {
     const oldCampaign = await this.findCampaignById(campaignId);
 
-    // Check compliance before approval (unless explicitly skipped by admin)
     if (!skipComplianceCheck) {
       const latestRun = await this.complianceRunRepository.findOne({
         where: { campaignId },
@@ -295,7 +286,6 @@ export class CampaignsService {
     await this.campaignRepository.update(campaignId, { status: CampaignStatus.APPROVED });
     const campaign = await this.findCampaignById(campaignId);
 
-    // Audit log for campaign approval
     await this.auditLogService.logSuccess(
       AuditAction.CAMPAIGN_APPROVE,
       'campaign',
@@ -318,7 +308,6 @@ export class CampaignsService {
     await this.campaignRepository.update(campaignId, { status: CampaignStatus.REJECTED });
     const campaign = await this.findCampaignById(campaignId);
 
-    // Audit log for campaign rejection
     await this.auditLogService.logSuccess(
       AuditAction.CAMPAIGN_REJECT,
       'campaign',
@@ -340,7 +329,6 @@ export class CampaignsService {
     await this.campaignRepository.update(campaignId, { status: CampaignStatus.SUBMITTED });
     const campaign = await this.findCampaignById(campaignId);
 
-    // Audit log for campaign submission
     await this.auditLogService.logSuccess(
       AuditAction.CAMPAIGN_SUBMIT,
       'campaign',
@@ -426,7 +414,6 @@ export class CampaignsService {
       `/campaigns/${campaign.id}`,
     );
 
-    // Zkontrolujeme, jestli dosáhla cíle
     const updatedStats = await this.findCampaignStats(campaignId);
     if (updatedStats.totalFunding >= campaign.goal) {
       await this.notificationsClient.createSuccessNotification(
@@ -442,7 +429,6 @@ export class CampaignsService {
     const campaign = await this.findCampaignById(campaignId);
     const stats = await this.findCampaignStats(campaignId);
 
-    // Notifikujeme každých 100 zobrazení
     if (stats.viewsCount > 0 && stats.viewsCount % 100 === 0) {
       await this.notificationsClient.createInfoNotification(
         campaign.creatorId,
@@ -456,12 +442,10 @@ export class CampaignsService {
   async deleteCampaignWithRefunds(campaignId: string, userId: string, reason: string): Promise<boolean> {
     const campaign = await this.findCampaignById(campaignId);
 
-    // Zkontroluj, jestli je uživatel vlastníkem nebo adminem
     if (campaign.creatorId !== userId) {
       throw new BadRequestException('Pouze vlastník kampaně může smazat kampaň');
     }
 
-    // Najdi všechny příspěvky k této kampani
     const contributions = await this.contributionRepository.find({
       where: {
         campaignId,
@@ -470,15 +454,12 @@ export class CampaignsService {
       relations: ['contributor'],
     });
 
-    // Pokud má kampaň příspěvky, vrať je
     if (contributions.length > 0) {
       // Pozn: Tady by normálně volal WalletService, ale kvůli circular dependency
       // to řešíme jinak - vytvoříme událost, kterou zpracuje WalletService
       for (const contribution of contributions) {
-        // Vrať příspěvek přímo v databázi
         await this.contributionRepository.update(contribution.id, { isRefunded: true });
 
-        // Pošli notifikaci přispěvateli
         await this.notificationsClient.createWarningNotification(
           contribution.contributorId,
           'Kampaň byla smazána - příspěvek vrácen 💸',
@@ -489,7 +470,6 @@ export class CampaignsService {
 
       const totalRefunded = contributions.reduce((sum, c) => sum + Number(c.amount), 0);
 
-      // Pošli notifikaci vlastníkovi
       await this.notificationsClient.createInfoNotification(
         userId,
         'Kampaň smazána s vrácením příspěvků',
@@ -498,7 +478,6 @@ export class CampaignsService {
       );
     }
 
-    // Označ kampaň jako smazanou
     await this.campaignRepository.update(campaignId, {
       status: CampaignStatus.DELETED
     });
@@ -548,7 +527,6 @@ export class CampaignsService {
 
     const savedComment = await this.commentRepository.save(comment);
 
-    // Fetch with relations to return full object
     const foundComment = await this.commentRepository.findOne({
       where: { id: savedComment.id },
       relations: ['user', 'campaign'],
@@ -558,7 +536,6 @@ export class CampaignsService {
       throw new NotFoundException('Comment not found after creation');
     }
 
-    // Pošleme notifikaci tvůrci kampaně (pokud komentář nepřidal sám tvůrce)
     const campaign = foundComment.campaign;
     if (campaign && campaign.creatorId !== userId) {
       const commenterName = foundComment.user?.email || 'Někdo';
@@ -576,7 +553,6 @@ export class CampaignsService {
   }
 
   
-  //report komentáře
   async reportComment(userId: string, input: ReportCommentInput): Promise<{ success: boolean; message?: string }> {
     const comment = await this.commentRepository.findOne({ where: { id: input.commentId } });
 
@@ -589,7 +565,6 @@ export class CampaignsService {
     }
     
 
-    //auto skrytí při překročení limitu
     const existingReport = await this.commentReportRepository.findOne({
       where: {
         userId: userId,
@@ -598,11 +573,9 @@ export class CampaignsService {
     });
 
     if (existingReport) {
-      //když už user komentář nahlásil tak mu to nedovolí reportnout znovu
       throw new BadRequestException('You have already reported this comment');
     }else{
 
-      //vytoření reportu
       const report = this.commentReportRepository.create({
         userId,
         commentId: input.commentId,
@@ -631,7 +604,6 @@ export class CampaignsService {
 
     const oldStatus = comment.status;
 
-    // Aplikace akce
     switch (input.action) {
       case ModerationAction.HIDE:
         comment.status = CommentStatus.HIDDEN;
@@ -651,7 +623,6 @@ export class CampaignsService {
 
     const savedComment = await this.commentRepository.save(comment);
 
-    // Audit log for comment moderation
     await this.auditLogService.logSuccess(
       AuditAction.COMMENT_MODERATE,
       'comment',
@@ -675,20 +646,16 @@ export class CampaignsService {
       throw new NotFoundException('Comment not found');
     }
 
-    // Kontrola vlastnictví
     if (comment.userId !== userId) {
       throw new ForbiddenException('You can only delete your own comments');
     }
 
-    // Soft delete - nastavení statusu na REMOVED
     comment.status = CommentStatus.REMOVED;
-    // Volitelně: Můžeme přepsat obsah, jak je v zadání
-    comment.content = '[Deleted by author]'; 
+    comment.content = '[Deleted by author]';
 
     return this.commentRepository.save(comment);
   }
 
-  //Úprava metody pro ziskani komentaru, vraci pouze viditelne komentare
   async getComments(campaignId: string): Promise<Comment[]> {
     return this.commentRepository.find({
       where: { 
@@ -700,9 +667,7 @@ export class CampaignsService {
     });
   }
 
-  // Survey methods
   async createCampaignSurvey(input: CreateCampaignSurveyInput, creatorId: string): Promise<CampaignSurvey> {
-    // Verify campaign ownership
     const campaign = await this.findCampaignById(input.campaignId);
     if (campaign.creatorId !== creatorId) {
       throw new ForbiddenException('Only campaign owner can create surveys');
@@ -715,16 +680,13 @@ export class CampaignsService {
 
     const savedSurvey = await this.surveyRepository.save(survey);
 
-    // Get all backers for this campaign
     const contributions = await this.contributionRepository.find({
       where: { campaignId: input.campaignId },
       relations: ['contributor'],
     });
 
-    // Get unique backer IDs
     const backerIds = [...new Set(contributions.map(c => c.contributorId))];
 
-    // Send notifications to all backers
     for (const backerId of backerIds) {
       await this.notificationsClient.createInfoNotification(
         backerId,
@@ -765,7 +727,6 @@ export class CampaignsService {
       throw new BadRequestException('This survey is no longer active');
     }
 
-    // Verify user is a backer
     const contribution = await this.contributionRepository.findOne({
       where: {
         campaignId: survey.campaignId,
@@ -777,7 +738,6 @@ export class CampaignsService {
       throw new ForbiddenException('Only campaign backers can respond to surveys');
     }
 
-    // Check if user already responded
     const existingResponse = await this.surveyResponseRepository.findOne({
       where: {
         surveyId: input.surveyId,
@@ -789,7 +749,6 @@ export class CampaignsService {
       throw new BadRequestException('You have already responded to this survey');
     }
 
-    // Validate answers match questions
     if (input.answers.length !== survey.questions.length) {
       throw new BadRequestException('Number of answers must match number of questions');
     }
@@ -801,7 +760,6 @@ export class CampaignsService {
 
     const savedResponse = await this.surveyResponseRepository.save(response);
 
-    // Notify campaign creator
     await this.notificationsClient.createInfoNotification(
       survey.creatorId,
       'New Survey Response',
@@ -815,7 +773,6 @@ export class CampaignsService {
   async getSurveyResponses(surveyId: string, requestingUserId: string): Promise<CampaignSurveyResponse[]> {
     const survey = await this.getSurveyById(surveyId);
 
-    // Only campaign owner can view responses
     if (survey.creatorId !== requestingUserId) {
       throw new ForbiddenException('Only campaign owner can view survey responses');
     }
