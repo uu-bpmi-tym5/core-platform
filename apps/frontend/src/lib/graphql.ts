@@ -567,10 +567,19 @@ export interface Comment {
   createdAt: string;
   campaignId: string;
   userId: string;
+  status?: 'VISIBLE' | 'HIDDEN' | 'REMOVED';
+  reportsCount?: number;
+  lastReportedAt?: string | null;
+  moderationReason?: string | null;
+  moderatedBy?: string | null;
   user: {
     id: string;
     displayName: string;
     avatarUrl?: string | null;
+  };
+  campaign?: {
+    id: string;
+    name: string;
   };
 }
 
@@ -612,6 +621,97 @@ export async function getComments(campaignId: string) {
       }
     `,
     { campaignId }
+  );
+}
+
+export async function reportComment(token: string, commentId: string, reason?: string) {
+  return fetchGraphQL<{ reportComment: boolean }>(
+    `
+      mutation ReportComment($input: ReportCommentInput!) {
+        reportComment(input: $input)
+      }
+    `,
+    { input: { commentId, reason } },
+    token
+  );
+}
+
+export async function deleteComment(token: string, commentId: string, reason?: string) {
+  return fetchGraphQL<{ moderateComment: Comment }>(
+    `
+      mutation ModerateComment($input: ModerateCommentInput!) {
+        moderateComment(input: $input) {
+          id
+          content
+          createdAt
+        }
+      }
+    `,
+    { input: { commentId, action: 'REMOVE', reason } },
+    token
+  );
+}
+
+export async function hideComment(token: string, commentId: string, reason?: string) {
+  return fetchGraphQL<{ moderateComment: Comment }>(
+    `
+      mutation ModerateComment($input: ModerateCommentInput!) {
+        moderateComment(input: $input) {
+          id
+          content
+          status
+        }
+      }
+    `,
+    { input: { commentId, action: 'HIDE', reason } },
+    token
+  );
+}
+
+export async function restoreComment(token: string, commentId: string) {
+  return fetchGraphQL<{ moderateComment: Comment }>(
+    `
+      mutation ModerateComment($input: ModerateCommentInput!) {
+        moderateComment(input: $input) {
+          id
+          content
+          status
+        }
+      }
+    `,
+    { input: { commentId, action: 'RESTORE' } },
+    token
+  );
+}
+
+export async function getReportedComments(token: string) {
+  return fetchGraphQL<{ reportedComments: Comment[] }>(
+    `
+      query GetReportedComments {
+        reportedComments {
+          id
+          content
+          createdAt
+          campaignId
+          userId
+          status
+          reportsCount
+          lastReportedAt
+          moderationReason
+          user {
+            id
+            displayName
+            avatarUrl
+          }
+          campaign {
+            id
+            name
+          }
+        }
+      }
+    `,
+    undefined,
+    token
   );
 }
 

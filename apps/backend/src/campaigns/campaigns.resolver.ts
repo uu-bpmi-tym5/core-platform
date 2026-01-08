@@ -210,7 +210,14 @@ export class CampaignsResolver {
     return this.campaignsService.getComments(campaignId);
   }
 
-  @Mutation(() => Boolean) 
+  @Query(() => [Comment], { name: 'reportedComments' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequirePermissions(Permission.MODERATE_COMMENTS)
+  async getReportedComments(): Promise<Comment[]> {
+    return this.campaignsService.getReportedComments();
+  }
+
+  @Mutation(() => Boolean)
   @UseGuards(JwtAuthGuard)
   async reportComment(
     @Args('input') input: ReportCommentInput,

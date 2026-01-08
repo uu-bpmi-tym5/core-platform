@@ -1,5 +1,5 @@
 import {Inject, Injectable, NotFoundException, BadRequestException} from '@nestjs/common';
-import {Repository} from 'typeorm';
+import {Not, Repository} from 'typeorm';
 import {Campaign, CampaignStatus} from './entities/campaign.entity';
 import {CampaignFeedback} from './entities/campaign-feedback.entity';
 import {CampaignStats} from './entities/campaign-stats.entity';
@@ -260,7 +260,7 @@ export class CampaignsService {
     return campaign?.creatorId === userId;
   }
 
-  async approveCampaign(campaignId: string, moderatorId?: string, skipComplianceCheck: boolean = false): Promise<Campaign> {
+  async approveCampaign(campaignId: string, moderatorId?: string, skipComplianceCheck = false): Promise<Campaign> {
     const oldCampaign = await this.findCampaignById(campaignId);
 
     if (!skipComplianceCheck) {
@@ -664,6 +664,20 @@ export class CampaignsService {
       },
       relations: ['user'],
       order: { createdAt: 'DESC' },
+    });
+  }
+
+  async getReportedComments(): Promise<Comment[]> {
+    return this.commentRepository.find({
+      where: {
+        reportsCount: Not(0),
+        status: Not(CommentStatus.REMOVED)
+      },
+      relations: ['user', 'campaign'],
+      order: {
+        reportsCount: 'DESC',
+        lastReportedAt: 'DESC'
+      },
     });
   }
 

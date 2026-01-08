@@ -33,9 +33,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { getPendingCampaigns, approveCampaign, rejectCampaign, Campaign } from '@/lib/graphql';
-import { Shield, CheckCircle, XCircle, Clock, AlertCircle, Users, FileCheck, History, ShieldCheck } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, Clock, AlertCircle, Users, FileCheck, History, ShieldCheck, MessageSquareWarning } from 'lucide-react';
 import { AuditLogTable } from './audit-log-table';
 import { ComplianceChecker } from './compliance-checker';
+import { CommentModerationTable } from './comment-moderation-table';
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat('en-US', {
@@ -143,10 +144,14 @@ export function AdminDashboard({ authToken }: AdminDashboardProps) {
 
       {/* Tabs for different admin sections */}
       <Tabs defaultValue="campaigns" className="space-y-6">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-xl grid-cols-3">
           <TabsTrigger value="campaigns" className="gap-2">
             <FileCheck className="h-4 w-4" />
             Campaign Review
+          </TabsTrigger>
+          <TabsTrigger value="moderation" className="gap-2">
+            <MessageSquareWarning className="h-4 w-4" />
+            Comment Moderation
           </TabsTrigger>
           <TabsTrigger value="audit-logs" className="gap-2">
             <History className="h-4 w-4" />
@@ -305,6 +310,11 @@ export function AdminDashboard({ authToken }: AdminDashboardProps) {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        {/* Comment Moderation Tab */}
+        <TabsContent value="moderation" forceMount className="data-[state=inactive]:hidden">
+          <CommentModerationTable authToken={authToken} />
         </TabsContent>
 
         {/* Audit Logs Tab */}
