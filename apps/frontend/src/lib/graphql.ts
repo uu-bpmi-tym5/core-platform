@@ -117,7 +117,6 @@ export async function updateMyProfile(token: string | null, input: Partial<Profi
           displayName
           avatarUrl
           location
-          website
         }
       }
     `,
@@ -136,6 +135,7 @@ export async function getMyCreatorProfile(token: string | null) {
           creatorBio
           primaryCategory
           highlights
+          website
         }
       }
     `,
