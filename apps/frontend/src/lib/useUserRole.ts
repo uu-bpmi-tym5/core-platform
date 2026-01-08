@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { usePathname } from 'next/navigation';
 import { jwtDecode } from 'jwt-decode';
 import { Role, ROLE_ACTIONS, canPerformAction } from './roles';
 
@@ -40,6 +41,7 @@ function decodeAuthToken(token: string | null): { role: Role | null; userId: str
 }
 
 export function useUserRole(): UseUserRoleReturn {
+  const pathname = usePathname();
   const [userRole, setUserRole] = React.useState<Role | null>(null);
   const [userId, setUserId] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -75,7 +77,7 @@ export function useUserRole(): UseUserRoleReturn {
       window.removeEventListener('storage', handleStorageChange);
       clearInterval(interval);
     };
-  }, [updateFromToken]);
+  }, [updateFromToken, pathname]);
 
   const hasRequiredRole = React.useCallback((requiredRoles: Role[]): boolean => {
     if (!userRole) return false;

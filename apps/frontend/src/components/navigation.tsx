@@ -19,7 +19,7 @@ export function Navigation() {
       const token = localStorage.getItem('authToken');
       setAuthToken(token);
     }
-  }, []);
+  }, [pathname]);
 
   const isActive = (path: string) => pathname === path;
 
@@ -40,6 +40,11 @@ export function Navigation() {
 
     return links;
   }, [authToken, isAdmin]);
+
+  // Hide navigation on auth routes
+  if (pathname?.startsWith('/auth') || pathname === '/login' || pathname === '/signup') {
+    return null;
+  }
 
   return (
     <nav className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
