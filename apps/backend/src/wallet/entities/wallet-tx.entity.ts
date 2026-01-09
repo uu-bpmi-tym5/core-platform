@@ -18,8 +18,8 @@ export enum TransactionStatus {
 }
 
 export enum TransactionDirection {
-  CREDIT = 'CREDIT',   // Příjem (Deposit, Refund)
-  DEBIT = 'DEBIT'  // Výdej (Platba, Výběr)
+  CREDIT = 'CREDIT',
+  DEBIT = 'DEBIT'
 }
 
 registerEnumType(TransactionType, {

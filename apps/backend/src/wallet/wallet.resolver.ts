@@ -30,7 +30,6 @@ export class WalletResolver {
     @Args('pagination', { nullable: true }) pagination?: PaginationInput,
     @Args('filter', { nullable: true }) filter?: WalletTransactionFilter,
   ): Promise<WalletTX[]> {
-    // Defaultní hodnoty
     const paginationInput = pagination || { limit: 100, offset: 0 };
     const filterInput = filter || {};
 

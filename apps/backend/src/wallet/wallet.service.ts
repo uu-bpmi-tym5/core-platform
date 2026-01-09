@@ -49,33 +49,24 @@ async getFilteredUserTransactions(
     filter: WalletTransactionFilter,
     pagination: PaginationInput
   ): Promise<WalletTX[]> {
-
-    //validace vstupu
-
-    // min>max
     if (filter.minAmount != null && filter.maxAmount != null) {
       if (filter.minAmount > filter.maxAmount) {
         throw new BadRequestException('minAmount nemůže být větší než maxAmount');
       }
     }
 
-    // fromDate > toDate
     if (filter.fromDate && filter.toDate) {
       if (new Date(filter.fromDate) > new Date(filter.toDate)) {
         throw new BadRequestException('fromDate nemůže být později než toDate');
       }
     }
 
-    // listování
-    // nesmí být záporný limit
     if (pagination.limit <= 0) {
       throw new BadRequestException('Listování limit musí být kladné číslo');
     }
-    // stránek limit 100
     if (pagination.limit > 100) {
       throw new BadRequestException('Listování limit nesmí být větší než 100'); 
     }
-    // offset nesmí být záporný
     if (pagination.offset < 0) {
        throw new BadRequestException('Offset nesmí být záporný');
     }
@@ -83,19 +74,17 @@ async getFilteredUserTransactions(
     const query = this.walletTxRepository.createQueryBuilder('tx');
     query.where('tx.userId = :userId', { userId });
 
-    //filtry
-    
-    //status
+
     if (filter.status && filter.status.length > 0) {
       query.andWhere('tx.status IN (:...statuses)', { statuses: filter.status });
     }
 
-    //typ
+
     if (filter.type && filter.type.length > 0) {
       query.andWhere('tx.type IN (:...types)', { types: filter.type });
     }
 
-    //datum
+
     if (filter.fromDate) {
       query.andWhere('tx.createdAt >= :from', { from: filter.fromDate });
     }
@@ -103,7 +92,7 @@ async getFilteredUserTransactions(
       query.andWhere('tx.createdAt <= :to', { to: filter.toDate });
     }
 
-    //částky
+
     if (filter.minAmount != null) {
       query.andWhere('tx.amount >= :minAmount', { minAmount: filter.minAmount });
     }
@@ -111,7 +100,7 @@ async getFilteredUserTransactions(
       query.andWhere('tx.amount <= :maxAmount', { maxAmount: filter.maxAmount });
     }
 
-    //jednoduchý search
+
     if (filter.search) {
       query.andWhere(
         new Brackets((qb) => {
@@ -120,8 +109,6 @@ async getFilteredUserTransactions(
         }),
       );
     }
-
-   //stránkování
 
     query.orderBy('tx.createdAt', 'DESC');
     query.take(pagination.limit); 
@@ -132,7 +119,6 @@ async getFilteredUserTransactions(
   }
 
   async depositMoney(userId: string, amount: number, externalReference?: string): Promise<WalletTX> {
-    // Vytvoř transakci
     const transaction = this.walletTxRepository.create({
       userId,
       type: TransactionType.DEPOSIT,
@@ -144,10 +130,10 @@ async getFilteredUserTransactions(
 
     const savedTransaction = await this.walletTxRepository.save(transaction);
 
-    // Aktualizuj zůstatek uživatele
+
     await this.userRepository.increment({ id: userId }, 'walletBalance', amount);
 
-    // Audit log for deposit
+
     await this.auditLogService.logSuccess(
       AuditAction.WALLET_DEPOSIT,
       'wallet_transaction',
@@ -164,7 +150,7 @@ async getFilteredUserTransactions(
       },
     );
 
-    // Pošli notifikaci
+
     await this.notificationsClient.createSuccessNotification(
       userId,
       'Vklad byl úspěšně proveden! 💰',
@@ -172,7 +158,7 @@ async getFilteredUserTransactions(
       `/wallet`
     );
 
-    // Načti transakci s relací user
+
     const transactionWithUser = await this.walletTxRepository.findOne({
       where: { id: savedTransaction.id },
       relations: ['user'],
@@ -184,16 +170,16 @@ async getFilteredUserTransactions(
   async contributeToCampaign(contributorId: string, input: ContributeToCampaignInput): Promise<CampaignContribution> {
     const { campaignId, amount, message } = input;
 
-    // Zkontroluj zůstatek
+
     const currentBalance = await this.getUserWalletBalance(contributorId);
     if (currentBalance < amount) {
       throw new BadRequestException('Nedostatečný zůstatek v peněžence');
     }
 
-    // Get campaign info for audit log
+
     const campaign = await this.campaignRepository.findOne({ where: { id: campaignId } });
 
-    // Vytvoř transakci
+
     const transaction = this.walletTxRepository.create({
       userId: contributorId,
       type: TransactionType.CAMPAIGN_CONTRIBUTION,
@@ -205,7 +191,7 @@ async getFilteredUserTransactions(
 
     const savedTransaction = await this.walletTxRepository.save(transaction);
 
-    // Vytvoř příspěvek
+
     const contribution = this.contributionRepository.create({
       campaignId,
       contributorId,
@@ -216,13 +202,13 @@ async getFilteredUserTransactions(
 
     const savedContribution = await this.contributionRepository.save(contribution);
 
-    // Odečti ze zůstatku
+
     await this.userRepository.decrement({ id: contributorId }, 'walletBalance', amount);
 
-    // Aktualizuj currentAmount kampaně
+
     await this.campaignRepository.increment({ id: campaignId }, 'currentAmount', amount);
 
-    // Audit log for contribution
+
     await this.auditLogService.logSuccess(
       AuditAction.CONTRIBUTION_CREATE,
       'campaign_contribution',
@@ -240,7 +226,7 @@ async getFilteredUserTransactions(
       },
     );
 
-    // Pošli notifikaci přispěvateli
+
     await this.notificationsClient.createSuccessNotification(
       contributorId,
       'Příspěvek byl odeslán! 🎯',
@@ -254,28 +240,28 @@ async getFilteredUserTransactions(
   async withdrawToBank(userId: string, input: BankWithdrawalInput): Promise<WalletTX> {
     const { amount, bankAccount, description } = input;
 
-    // Zkontroluj zůstatek
+
     const currentBalance = await this.getUserWalletBalance(userId);
     if (currentBalance < amount) {
       throw new BadRequestException('Nedostatečný zůstatek v peněžence');
     }
 
-    // Vytvoř transakci
+
     const transaction = this.walletTxRepository.create({
       userId,
       type: TransactionType.BANK_WITHDRAWAL,
       amount,
-      status: TransactionStatus.PENDING, // Výběr na banku bude vyžadovat zpracování
+      status: TransactionStatus.PENDING,
       description: description || `Výběr ${amount} $ na bankovní účet`,
       externalReference: bankAccount,
     });
 
     const savedTransaction = await this.walletTxRepository.save(transaction);
 
-    // Odečti ze zůstatku (dočasně, dokud se nevyřídí)
+
     await this.userRepository.decrement({ id: userId }, 'walletBalance', amount);
 
-    // Audit log for bank withdrawal
+
     await this.auditLogService.logSuccess(
       AuditAction.WALLET_WITHDRAWAL,
       'wallet_transaction',
@@ -287,13 +273,13 @@ async getFilteredUserTransactions(
           amount,
           type: TransactionType.BANK_WITHDRAWAL,
           status: TransactionStatus.PENDING,
-          bankAccount: bankAccount ? `***${bankAccount.slice(-4)}` : undefined, // Mask bank account
+          bankAccount: bankAccount ? `***${bankAccount.slice(-4)}` : undefined,
         },
         entityOwnerId: userId,
       },
     );
 
-    // Pošli notifikaci
+
     await this.notificationsClient.createInfoNotification(
       userId,
       'Žádost o výběr byla přijata 🏦',
@@ -301,7 +287,7 @@ async getFilteredUserTransactions(
       `/wallet`
     );
 
-    // Načti transakci s relací user
+
     const transactionWithUser = await this.walletTxRepository.findOne({
       where: { id: savedTransaction.id },
       relations: ['user'],
@@ -324,7 +310,7 @@ async getFilteredUserTransactions(
       throw new BadRequestException('Příspěvek již byl vrácen');
     }
 
-    // Vytvoř refund transakci
+
     const refundTransaction = this.walletTxRepository.create({
       userId: contribution.contributorId,
       type: TransactionType.REFUND,
@@ -336,13 +322,13 @@ async getFilteredUserTransactions(
 
     const savedRefund = await this.walletTxRepository.save(refundTransaction);
 
-    // Vrať peníze na účet
+
     await this.userRepository.increment({ id: contribution.contributorId }, 'walletBalance', contribution.amount);
 
-    // Označ příspěvek jako vrácený
+
     await this.contributionRepository.update(contributionId, { isRefunded: true });
 
-    // Audit log for refund
+
     await this.auditLogService.logSuccess(
       AuditAction.CONTRIBUTION_REFUND,
       'campaign_contribution',
@@ -357,7 +343,7 @@ async getFilteredUserTransactions(
       },
     );
 
-    // Pošli notifikaci
+
     await this.notificationsClient.createInfoNotification(
       contribution.contributorId,
       'Příspěvek byl vrácen 💸',
@@ -365,7 +351,7 @@ async getFilteredUserTransactions(
       `/wallet`
     );
 
-    // Načti transakci s relací user
+
     const refundWithUser = await this.walletTxRepository.findOne({
       where: { id: savedRefund.id },
       relations: ['user'],
@@ -418,7 +404,7 @@ async getFilteredUserTransactions(
       throw new NotFoundException('Transakce nebyla nalezena');
     }
 
-    // Pokud je to výběr na banku, vrať peníze zpět
+
     if (transaction.type === TransactionType.BANK_WITHDRAWAL && transaction.status === TransactionStatus.PENDING) {
       await this.userRepository.increment({ id: transaction.userId }, 'walletBalance', transaction.amount);
     }
@@ -428,7 +414,7 @@ async getFilteredUserTransactions(
       description: `${transaction.description} - Neúspěšné: ${reason}`
     });
 
-    // Pošli notifikaci o neúspěšné transakci
+
     await this.notificationsClient.createErrorNotification(
       transaction.userId,
       'Transakce selhala',
