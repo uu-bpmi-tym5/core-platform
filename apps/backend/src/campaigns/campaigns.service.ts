@@ -305,8 +305,15 @@ export class CampaignsService {
 
   async rejectCampaign(campaignId: string, moderatorId?: string): Promise<Campaign> {
     const oldCampaign = await this.findCampaignById(campaignId);
-    await this.campaignRepository.update(campaignId, { status: CampaignStatus.REJECTED });
+    await this.campaignRepository.update(campaignId, { status: CampaignStatus.DRAFT });
     const campaign = await this.findCampaignById(campaignId);
+
+    await this.notificationsClient.createWarningNotification(
+        campaign.creatorId,
+          'Kampaň byla zamítnuta',
+          `Vaše kampaň "${campaign.name}" byla zamítnuta. Zkontrolujte feedback pro více informací`,
+          `/campaigns/${campaign.id}`
+    );
 
     await this.auditLogService.logSuccess(
       AuditAction.CAMPAIGN_REJECT,
@@ -552,7 +559,7 @@ export class CampaignsService {
     return foundComment;
   }
 
-  
+
   async reportComment(userId: string, input: ReportCommentInput): Promise<{ success: boolean; message?: string }> {
     const comment = await this.commentRepository.findOne({ where: { id: input.commentId } });
 
@@ -563,7 +570,7 @@ export class CampaignsService {
     if (comment.status === CommentStatus.REMOVED) {
       throw new BadRequestException('Cannot report a removed comment');
     }
-    
+
 
     const existingReport = await this.commentReportRepository.findOne({
       where: {
@@ -580,7 +587,7 @@ export class CampaignsService {
         userId,
         commentId: input.commentId,
       });
-    
+
       await this.commentReportRepository.save(report);
 
       comment.reportsCount += 1;
@@ -658,7 +665,7 @@ export class CampaignsService {
 
   async getComments(campaignId: string): Promise<Comment[]> {
     return this.commentRepository.find({
-      where: { 
+      where: {
         campaignId,
         status: CommentStatus.VISIBLE
       },
