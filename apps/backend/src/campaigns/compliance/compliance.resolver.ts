@@ -2,7 +2,7 @@ import { Resolver, Query, Mutation, Args, ObjectType, Field } from '@nestjs/grap
 import { UseGuards, ForbiddenException } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { GetCurrentUser } from '../../auth/decorators/get-current-user.decorator';
-import { JwtPayload } from '../../auth/auth.service';
+import type { JwtPayload } from '../../auth/auth.service';
 import { Role } from '../../auth/enums/role.enum';
 import {
   ComplianceRun,
@@ -12,9 +12,6 @@ import {
 } from '../entities/compliance.entity';
 import { ComplianceService } from './compliance.service';
 
-/**
- * Rule definition for GraphQL
- */
 @ObjectType()
 class ComplianceRuleDefinition {
   @Field()
@@ -33,9 +30,6 @@ class ComplianceRuleDefinition {
   severity: ComplianceRuleSeverity;
 }
 
-/**
- * Approval status result
- */
 @ObjectType()
 class CampaignApprovalStatus {
   @Field()
@@ -52,10 +46,7 @@ class CampaignApprovalStatus {
 export class ComplianceResolver {
   constructor(private readonly complianceService: ComplianceService) {}
 
-  /**
-   * Run compliance checks for a campaign
-   * Only Moderators and Admins can run checks
-   */
+
   @UseGuards(JwtAuthGuard)
   @Mutation(() => ComplianceRun, {
     description: 'Run compliance checks for a campaign',
@@ -64,7 +55,6 @@ export class ComplianceResolver {
     @Args('campaignId') campaignId: string,
     @GetCurrentUser() user: JwtPayload,
   ): Promise<ComplianceRun> {
-    // Only moderators and admins can run compliance checks
     if (user.role !== Role.MODERATOR && user.role !== Role.ADMIN) {
       throw new ForbiddenException('Only moderators and admins can run compliance checks');
     }
@@ -72,9 +62,6 @@ export class ComplianceResolver {
     return this.complianceService.runComplianceChecks(campaignId, user.userId);
   }
 
-  /**
-   * Get the latest compliance run for a campaign
-   */
   @UseGuards(JwtAuthGuard)
   @Query(() => ComplianceRun, {
     nullable: true,
@@ -84,7 +71,6 @@ export class ComplianceResolver {
     @Args('campaignId') campaignId: string,
     @GetCurrentUser() user: JwtPayload,
   ): Promise<ComplianceRun | null> {
-    // Only moderators and admins can view compliance runs
     if (user.role !== Role.MODERATOR && user.role !== Role.ADMIN) {
       throw new ForbiddenException('Only moderators and admins can view compliance runs');
     }
@@ -92,9 +78,6 @@ export class ComplianceResolver {
     return this.complianceService.getLatestRun(campaignId);
   }
 
-  /**
-   * Get compliance run history for a campaign
-   */
   @UseGuards(JwtAuthGuard)
   @Query(() => [ComplianceRun], {
     description: 'Get compliance run history for a campaign',
@@ -110,9 +93,6 @@ export class ComplianceResolver {
     return this.complianceService.getRunHistory(campaignId);
   }
 
-  /**
-   * Get a specific compliance run by ID
-   */
   @UseGuards(JwtAuthGuard)
   @Query(() => ComplianceRun, {
     nullable: true,
@@ -129,9 +109,6 @@ export class ComplianceResolver {
     return this.complianceService.getRunById(runId);
   }
 
-  /**
-   * Add a moderator note to a check result
-   */
   @UseGuards(JwtAuthGuard)
   @Mutation(() => ComplianceCheckResult, {
     description: 'Add a moderator note to a compliance check result',
@@ -148,9 +125,6 @@ export class ComplianceResolver {
     return this.complianceService.addModeratorNote(checkResultId, note, user.userId);
   }
 
-  /**
-   * Override blockers to allow approval (Admin only)
-   */
   @UseGuards(JwtAuthGuard)
   @Mutation(() => ComplianceRun, {
     description: 'Override blockers to allow campaign approval (Admin only)',
@@ -160,7 +134,6 @@ export class ComplianceResolver {
     @Args('reason') reason: string,
     @GetCurrentUser() user: JwtPayload,
   ): Promise<ComplianceRun> {
-    // Only admins can override blockers
     if (user.role !== Role.ADMIN) {
       throw new ForbiddenException('Only admins can override compliance blockers');
     }
@@ -168,9 +141,6 @@ export class ComplianceResolver {
     return this.complianceService.overrideBlockers(runId, reason, user.userId);
   }
 
-  /**
-   * Check if a campaign can be approved
-   */
   @UseGuards(JwtAuthGuard)
   @Query(() => CampaignApprovalStatus, {
     description: 'Check if a campaign can be approved based on compliance checks',
@@ -191,9 +161,6 @@ export class ComplianceResolver {
     };
   }
 
-  /**
-   * Get all compliance rules (for display in UI)
-   */
   @UseGuards(JwtAuthGuard)
   @Query(() => [ComplianceRuleDefinition], {
     description: 'Get all compliance rules',

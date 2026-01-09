@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -23,14 +23,10 @@ export class ComplianceService {
     private auditLogService: AuditLogService,
   ) {}
 
-  /**
-   * Run all compliance checks for a campaign
-   */
   async runComplianceChecks(
     campaignId: string,
     userId?: string,
   ): Promise<ComplianceRun> {
-    // Get the campaign
     const campaign = await this.campaignRepository.findOne({
       where: { id: campaignId },
     });
@@ -39,7 +35,6 @@ export class ComplianceService {
       throw new NotFoundException(`Campaign ${campaignId} not found`);
     }
 
-    // Only run checks on DRAFT or SUBMITTED campaigns
     if (campaign.status !== CampaignStatus.DRAFT && campaign.status !== CampaignStatus.SUBMITTED) {
       throw new BadRequestException(
         `Cannot run compliance checks on a campaign with status ${campaign.status}`
@@ -55,7 +50,6 @@ export class ComplianceService {
     let warningChecks = 0;
     let blockerCount = 0;
 
-    // Run each rule
     for (const rule of rules) {
       const checkResult = rule.check(campaign);
 
@@ -74,7 +68,6 @@ export class ComplianceService {
 
       results.push(result);
 
-      // Count results
       switch (checkResult.status) {
         case ComplianceCheckStatus.PASS:
           passedChecks++;
@@ -91,10 +84,8 @@ export class ComplianceService {
       }
     }
 
-    // Save all check results
     await this.checkResultRepository.save(results);
 
-    // Create and save the run summary
     const run = this.runRepository.create({
       id: runId,
       campaignId,
@@ -110,12 +101,10 @@ export class ComplianceService {
 
     const savedRun = await this.runRepository.save(run);
 
-    // Load results for return
     savedRun.results = results;
 
-    // Log the compliance check
     await this.auditLogService.logSuccess(
-      AuditAction.CAMPAIGN_SUBMIT, // Reusing existing action
+      AuditAction.CAMPAIGN_SUBMIT,
       'compliance_run',
       runId,
       `Compliance checks run for campaign "${campaign.name}": ${passedChecks} passed, ${failedChecks} failed, ${warningChecks} warnings`,
@@ -136,9 +125,6 @@ export class ComplianceService {
     return savedRun;
   }
 
-  /**
-   * Get the latest compliance run for a campaign
-   */
   async getLatestRun(campaignId: string): Promise<ComplianceRun | null> {
     const run = await this.runRepository.findOne({
       where: { campaignId },
@@ -156,9 +142,6 @@ export class ComplianceService {
     return run;
   }
 
-  /**
-   * Get all compliance runs for a campaign
-   */
   async getRunHistory(campaignId: string): Promise<ComplianceRun[]> {
     return this.runRepository.find({
       where: { campaignId },
@@ -167,9 +150,6 @@ export class ComplianceService {
     });
   }
 
-  /**
-   * Get a specific compliance run by ID
-   */
   async getRunById(runId: string): Promise<ComplianceRun | null> {
     const run = await this.runRepository.findOne({
       where: { id: runId },
@@ -187,9 +167,6 @@ export class ComplianceService {
     return run;
   }
 
-  /**
-   * Add a moderator note to a check result
-   */
   async addModeratorNote(
     checkResultId: string,
     note: string,
@@ -209,9 +186,6 @@ export class ComplianceService {
     return this.checkResultRepository.save(result);
   }
 
-  /**
-   * Override blockers (admin only) to allow approval
-   */
   async overrideBlockers(
     runId: string,
     reason: string,
@@ -240,14 +214,12 @@ export class ComplianceService {
 
     const savedRun = await this.runRepository.save(run);
 
-    // Get campaign for audit log
     const campaign = await this.campaignRepository.findOne({
       where: { id: run.campaignId },
     });
 
-    // Log the override
     await this.auditLogService.logSuccess(
-      AuditAction.CAMPAIGN_APPROVE, // Reusing existing action
+      AuditAction.CAMPAIGN_APPROVE,
       'compliance_run',
       runId,
       `Admin override: Blockers overridden for campaign "${campaign?.name || run.campaignId}"`,
@@ -265,9 +237,6 @@ export class ComplianceService {
     return savedRun;
   }
 
-  /**
-   * Check if a campaign can be approved based on latest compliance run
-   */
   async canCampaignBeApproved(campaignId: string): Promise<{
     canApprove: boolean;
     reason: string;
@@ -304,9 +273,6 @@ export class ComplianceService {
     };
   }
 
-  /**
-   * Get all available rules (for display in UI)
-   */
   getRules() {
     return COMPLIANCE_RULES.map(rule => ({
       id: rule.id,

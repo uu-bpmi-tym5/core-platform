@@ -1,11 +1,6 @@
 import { Role } from './role.enum';
 import { Permission } from './permission.enum';
 
-/**
- * Role-to-Permission mapping
- * This defines what each role can do in the system
- * Note: Campaign ownership is context-specific, not role-based
- */
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   [Role.SUPPORTER]: [
     Permission.VIEW_CAMPAIGNS,
@@ -53,16 +48,10 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   ],
 };
 
-/**
- * Check if a role has a specific permission
- */
 export function hasPermission(role: Role, permission: Permission): boolean {
   return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
 }
 
-/**
- * Get all permissions for a role
- */
 export function getRolePermissions(role: Role): Permission[] {
   return ROLE_PERMISSIONS[role] ?? [];
 }

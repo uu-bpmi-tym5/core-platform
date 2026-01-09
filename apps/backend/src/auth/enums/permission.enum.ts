@@ -1,8 +1,4 @@
-/**
- * Granular permissions that can be assigned to roles
- */
 export enum Permission {
-  // Campaign permissions
   VIEW_CAMPAIGNS = 'VIEW_CAMPAIGNS',
   CREATE_CAMPAIGN = 'CREATE_CAMPAIGN',
   UPDATE_OWN_CAMPAIGN = 'UPDATE_OWN_CAMPAIGN',
@@ -12,22 +8,17 @@ export enum Permission {
   APPROVE_CAMPAIGN = 'APPROVE_CAMPAIGN',
   REJECT_CAMPAIGN = 'REJECT_CAMPAIGN',
 
-  // Contribution permissions
   CONTRIBUTE_TO_CAMPAIGN = 'CONTRIBUTE_TO_CAMPAIGN',
 
-  // Comment permissions
   READ_COMMENTS = 'READ_COMMENTS',
   WRITE_COMMENT = 'WRITE_COMMENT',
   MODERATE_COMMENTS = 'MODERATE_COMMENTS',
 
-  // User management permissions
   MANAGE_USERS = 'MANAGE_USERS',
   MANAGE_ROLES = 'MANAGE_ROLES',
 
-  // Platform settings
   MANAGE_PLATFORM_SETTINGS = 'MANAGE_PLATFORM_SETTINGS',
 
-  // Notification permissions
   MANAGE_NOTIFICATIONS = 'MANAGE_NOTIFICATIONS',
 }
 
