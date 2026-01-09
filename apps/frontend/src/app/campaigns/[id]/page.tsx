@@ -213,11 +213,19 @@ export default function CampaignDetailPage() {
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
-                    {campaign.creator?.email.substring(0, 2).toUpperCase() || 'U'}
-                  </div>
+                  {campaign.creator?.avatarUrl ? (
+                    <img
+                      src={campaign.creator.avatarUrl}
+                      alt={campaign.creator.displayName || campaign.creator.email}
+                      className="h-10 w-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                      {(campaign.creator?.displayName || campaign.creator?.email || 'U').substring(0, 2).toUpperCase()}
+                    </div>
+                  )}
                   <div>
-                    <p className="font-medium">{campaign.creator?.email || 'Unknown User'}</p>
+                    <p className="font-medium">{campaign.creator?.displayName || campaign.creator?.email || 'Unknown User'}</p>
                     <p className="text-xs text-muted-foreground">Campaign Creator</p>
                   </div>
                 </div>

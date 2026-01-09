@@ -65,6 +65,8 @@ export interface Campaign {
   creator?: {
     id: string;
     email: string;
+    displayName?: string | null;
+    avatarUrl?: string | null;
   };
 }
 
@@ -396,6 +398,8 @@ export async function getCampaignById(campaignId: string) {
           creator {
             id
             email
+            displayName
+            avatarUrl
           }
         }
       }
